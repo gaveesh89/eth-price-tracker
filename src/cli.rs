@@ -191,6 +191,7 @@ async fn run_watch_command(interval: u64, start_block: Option<u64>) -> TrackerRe
 ///
 /// This function only fetches events from blocks that haven't been processed yet,
 /// implementing efficient incremental indexing rather than naive polling.
+/// Batches queries into 10-block chunks for Alchemy free tier compatibility.
 async fn process_new_blocks(
     provider: &crate::rpc::Provider,
     state: &mut State,
@@ -214,42 +215,58 @@ async fn process_new_blocks(
 
     debug!("Processing new blocks: {} to {}", from_block, to_block);
 
-    // Fetch events from new blocks only
-    let logs = fetch_sync_events(provider, from_block, to_block).await?;
+    // Batch size: 10 blocks (Alchemy free tier limit)
+    const BATCH_SIZE: u64 = 10;
+    let mut current_block = from_block;
+    let mut total_events = 0;
 
-    if logs.is_empty() {
-        debug!("No Sync events in blocks {} to {}", from_block, to_block);
-        *last_processed_block = to_block;
-        return Ok(());
+    // Process blocks in batches
+    while current_block <= to_block {
+        let batch_end = std::cmp::min(current_block + BATCH_SIZE - 1, to_block);
+        debug!("Fetching batch: blocks {} to {}", current_block, batch_end);
+
+        // Fetch events from this batch
+        let logs = fetch_sync_events(provider, current_block, batch_end).await?;
+
+        if !logs.is_empty() {
+            total_events += logs.len();
+            debug!("Found {} events in batch", logs.len());
+
+            // Process each event
+            for log in logs {
+                let (sync_event, block_number) = decode_sync_event(&log)?;
+
+                // Update state
+                state.update_from_sync_event(&sync_event, block_number)?;
+
+                // Calculate price
+                let (weth_reserve, usdt_reserve) = state.get_reserves();
+                let price = calculate_eth_price(weth_reserve, usdt_reserve)?;
+
+                // Calculate price change
+                let price_change = last_price.map(|last| ((price - last) / last) * 100.0);
+
+                // Display update
+                print_price_update(
+                    block_number,
+                    price,
+                    weth_reserve,
+                    usdt_reserve,
+                    price_change,
+                );
+
+                // Update last price
+                *last_price = Some(price);
+            }
+        }
+
+        current_block = batch_end + 1;
     }
 
-    info!("Found {} new Sync events", logs.len());
-
-    // Process each event
-    for log in logs {
-        let (sync_event, block_number) = decode_sync_event(&log)?;
-
-        // Update state
-        state.update_from_sync_event(&sync_event, block_number)?;
-
-        // Calculate price
-        let (weth_reserve, usdt_reserve) = state.get_reserves();
-        let price = calculate_eth_price(weth_reserve, usdt_reserve)?;
-
-        // Calculate price change
-        let price_change = last_price.map(|last| ((price - last) / last) * 100.0);
-
-        // Display update
-        print_price_update(
-            block_number,
-            price,
-            weth_reserve,
-            usdt_reserve,
-            price_change,
-        );
-
-        // Update last price
-        *last_price = Some(price);
+    if total_events > 0 {
+        info!("Found {} Sync events in range {} to {}", total_events, from_block, to_block);
+    } else {
+        debug!("No Sync events in blocks {} to {}", from_block, to_block);
     }
 
     // Update last processed block
