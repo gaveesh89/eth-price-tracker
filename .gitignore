@@ -1,0 +1,27 @@
+# Rust
+/target
+Cargo.lock
+
+# Environment and secrets
+.env
+*.env
+!.env.example
+
+# State files
+state.json
+*.db
+*.sqlite
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Test artifacts
+*.profraw
+*.profdata

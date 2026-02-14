@@ -1,0 +1,68 @@
+[package]
+name = "eth-uniswap-alloy"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+authors = ["Gaveesh Jain"]
+description = "Production-grade Ethereum event indexer for Uniswap V2 using Alloy"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/gaveesh89/eth-price-tracker"
+homepage = "https://github.com/gaveesh89/eth-price-tracker"
+
+# Strict linting configuration
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[lints.clippy]
+all = "deny"
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+
+# Workspace-style dependency management
+[workspace.dependencies]
+# Alloy - Ethereum library
+alloy = { version = "0.6", features = ["providers", "rpc-types", "sol-types", "contract"] }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Error handling
+eyre = "0.6"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Environment configuration
+dotenvy = "0.15"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+colored = "2"
+chrono = "0.4"
+
+[dependencies]
+# Use workspace dependencies
+alloy = { workspace = true }
+tokio = { workspace = true }
+eyre = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+dotenvy = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+clap = { workspace = true }
+colored = { workspace = true }
+chrono = { workspace = true }
+
+[dev-dependencies]
+# For Anvil testing
+alloy = { workspace = true, features = ["node-bindings"] }
