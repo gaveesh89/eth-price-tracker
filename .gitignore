@@ -1,27 +1,23 @@
-# Rust
-/target
+# Rust build artifacts
+/target/
+**/*.rs.bk
 Cargo.lock
 
-# Environment and secrets
+# Environment variables - NEVER COMMIT!
 .env
-*.env
-!.env.example
 
-# State files
+# Runtime state files
 state.json
 *.db
 *.sqlite
 
-# IDE
-.vscode/
+# IDE files
 .idea/
+.vscode/
 *.swp
 *.swo
 *~
 
-# macOS
+# OS files
 .DS_Store
-
-# Test artifacts
-*.profraw
-*.profdata
+Thumbs.db

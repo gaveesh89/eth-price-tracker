@@ -1,13 +1,38 @@
 //! Configuration management for the Uniswap V2 event indexer.
 //!
-//! This module handles loading and validating configuration from environment variables
-//! using the `dotenvy` crate. All operations return [`TrackerResult`] for comprehensive
-//! error handling.
+//! This module handles loading and validating configuration from environment variables.
+//! The config is loaded in this order:
+//! 1. Attempts to load `.env` file via `dotenvy`
+//! 2. Reads environment variables directly
+//! 3. Applies defaults for optional variables
+//!
+//! ## Environment Setup
+//!
+//! When running with `cargo run`, you need to explicitly export environment variables:
+//!
+//! ```bash
+//! # Option A: Set RPC_URL directly (recommended)
+//! export RPC_URL="https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY"
+//! cargo run -- price
+//!
+//! # Option B: Set ALCHEMY_API_KEY (backward compatible)
+//! export ALCHEMY_API_KEY="YOUR_API_KEY"
+//! cargo run -- price
+//!
+//! # Option C: Use on command line
+//! RPC_URL="..." cargo run -- price
+//! ```
+//!
+//! When running the compiled binary directly, you can also use a `.env` file:
+//!
+//! ```bash
+//! ./target/release/eth-uniswap-alloy price  # Automatically loads .env
+//! ```
 //!
 //! ## Environment Variables
 //!
 //! Required:
-//! - `ALCHEMY_API_KEY`: Alchemy API key for Ethereum RPC access
+//! - `RPC_URL`: Full Ethereum RPC URL (alternatively `ALCHEMY_API_KEY` for backward compatibility)
 //!
 //! Optional (with defaults):
 //! - `ANVIL_FORK_BLOCK`: Block number for Anvil fork testing (default: 19000000)
@@ -97,23 +122,37 @@ impl Config {
         // Load .env file if present (ignore error if file doesn't exist)
         dotenvy::dotenv().ok();
 
-        // Required: Alchemy API key
-        let alchemy_api_key = env::var("ALCHEMY_API_KEY").map_err(|e| {
-            TrackerError::config(
-                "ALCHEMY_API_KEY environment variable is required",
-                Some(Box::new(e)),
-            )
-        })?;
+        // Required: RPC URL (or construct from ALCHEMY_API_KEY for backward compatibility)
+        let rpc_url = match env::var("RPC_URL") {
+            Ok(url) if !url.is_empty() && url != "https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY_HERE" => {
+                url
+            }
+            _ => {
+                // Fallback to ALCHEMY_API_KEY for backward compatibility
+                let alchemy_api_key = env::var("ALCHEMY_API_KEY").map_err(|_| {
+                    TrackerError::config(
+                        "RPC_URL or ALCHEMY_API_KEY environment variable is required",
+                        None,
+                    )
+                })?;
 
-        if alchemy_api_key.is_empty() || alchemy_api_key == "your_alchemy_api_key_here" {
-            return Err(TrackerError::config(
-                "ALCHEMY_API_KEY must be set to a valid Alchemy API key",
-                None,
-            ));
-        }
+                if alchemy_api_key.is_empty() || alchemy_api_key == "your_alchemy_api_key_here" {
+                    return Err(TrackerError::config(
+                        "ALCHEMY_API_KEY must be set to a valid Alchemy API key",
+                        None,
+                    ));
+                }
 
-        // Construct RPC URL from API key
-        let rpc_url = format!("https://eth-mainnet.g.alchemy.com/v2/{alchemy_api_key}");
+                format!("https://eth-mainnet.g.alchemy.com/v2/{alchemy_api_key}")
+            }
+        };
+
+        // Extract API key for storage (for backward compatibility)
+        let alchemy_api_key = if let Some(api_key) = rpc_url.strip_prefix("https://eth-mainnet.g.alchemy.com/v2/") {
+            api_key.to_string()
+        } else {
+            "custom_rpc".to_string()
+        };
 
         // Optional: Anvil fork block (default: 19000000)
         let anvil_fork_block = env::var("ANVIL_FORK_BLOCK")
