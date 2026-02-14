@@ -268,6 +268,79 @@ See [Cargo.toml](./Cargo.toml) for complete dependency list.
     └── anvil_setup.rs        # Anvil integration tests
 ```
 
+## Documentation
+
+### Generate and View Documentation
+
+Generate the full API documentation:
+
+```bash
+# Generate documentation
+cargo doc --no-deps
+
+# Generate and open in browser
+cargo doc --no-deps --open
+```
+
+The documentation is also available online at [docs.rs](https://docs.rs/eth-uniswap-alloy) (once published).
+
+### Documentation Resources
+
+- **[README.md](README.md)** - Project overview and quick start
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Detailed 5-layer architecture design
+- **[USAGE.md](USAGE.md)** - Comprehensive usage guide with examples
+- **[TESTING.md](TESTING.md)** - Complete testing documentation (80+ tests)
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Guidelines for contributors
+- **[CLI_IMPLEMENTATION.md](CLI_IMPLEMENTATION.md)** - CLI module implementation details
+
+### API Documentation
+
+Every public API has comprehensive documentation including:
+
+- **Description**: What the function/type does
+- **Arguments**: Parameter descriptions
+- **Returns**: Return value explanation
+- **Errors**: When and why errors occur
+- **Examples**: Working code examples
+- **Panics**: Panic conditions (though we forbid panics)
+
+Example from the codebase:
+
+```rust
+/// Calculate the ETH/USDT price from reserve amounts.
+///
+/// # Arguments
+///
+/// * `weth_reserve` - WETH reserve (18 decimals)
+/// * `usdt_reserve` - USDT reserve (6 decimals)
+///
+/// # Returns
+///
+/// ETH price in USDT as f64
+///
+/// # Errors
+///
+/// Returns `TrackerError::Math` if reserves are zero
+///
+/// # Examples
+///
+/// ```
+/// use eth_uniswap_alloy::pricing::calculate_eth_price;
+/// use alloy::primitives::U256;
+///
+/// let weth = U256::from(50_000_000_000_000_000_000_u128);
+/// let usdt = U256::from(125_000_000_000_u128);
+/// let price = calculate_eth_price(weth, usdt).unwrap();
+/// assert!(price > 2000.0 && price < 3000.0);
+/// ```
+pub fn calculate_eth_price(
+    weth_reserve: U256,
+    usdt_reserve: U256,
+) -> TrackerResult<f64> {
+    // Implementation...
+}
+```
+
 ## Linting and Code Quality
 
 Strict linting configuration in [Cargo.toml](./Cargo.toml):
