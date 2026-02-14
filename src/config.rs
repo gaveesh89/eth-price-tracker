@@ -124,21 +124,31 @@ impl Config {
 
         // Required: RPC URL (or construct from ALCHEMY_API_KEY for backward compatibility)
         let rpc_url = match env::var("RPC_URL") {
-            Ok(url) if !url.is_empty() && url != "https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY_HERE" => {
+            Ok(url) if !url.is_empty() && url != "https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY_HERE" && url.starts_with("http") => {
                 url
+            }
+            Ok(url) if !url.starts_with("http") => {
+                // User provided an invalid RPC URL (e.g., just "your_key")
+                return Err(TrackerError::config(
+                    format!(
+                        "Invalid RPC_URL format: '{}'\n\nExpected: https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY\n\nUsage:\n  RPC_URL=\"https://...\" cargo run -- price\n  or\n  ALCHEMY_API_KEY=\"YOUR_KEY\" cargo run -- price",
+                        url
+                    ),
+                    None,
+                ));
             }
             _ => {
                 // Fallback to ALCHEMY_API_KEY for backward compatibility
                 let alchemy_api_key = env::var("ALCHEMY_API_KEY").map_err(|_| {
                     TrackerError::config(
-                        "RPC_URL or ALCHEMY_API_KEY environment variable is required",
+                        "RPC_URL or ALCHEMY_API_KEY environment variable is required\n\nUsage:\n  RPC_URL=\"https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY\" cargo run -- price\n  or\n  ALCHEMY_API_KEY=\"YOUR_KEY\" cargo run -- price",
                         None,
                     )
                 })?;
 
                 if alchemy_api_key.is_empty() || alchemy_api_key == "your_alchemy_api_key_here" {
                     return Err(TrackerError::config(
-                        "ALCHEMY_API_KEY must be set to a valid Alchemy API key",
+                        "ALCHEMY_API_KEY must be set to a valid Alchemy API key\n\nUsage:\n  ALCHEMY_API_KEY=\"YOUR_ACTUAL_KEY\" cargo run -- price",
                         None,
                     ));
                 }

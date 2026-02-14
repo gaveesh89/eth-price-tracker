@@ -71,7 +71,17 @@ pub async fn create_provider(rpc_url: &str) -> TrackerResult<Provider> {
     // Parse the RPC URL
     let url = rpc_url
         .parse()
-        .map_err(|e| TrackerError::rpc("Failed to parse RPC URL", Some(Box::new(e))))?;
+        .map_err(|e| {
+            let msg = if rpc_url == "your_key" || !rpc_url.starts_with("http") {
+                format!(
+                    "Invalid RPC URL: '{}'. Expected format: 'https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY'\n\nUsage:\n  RPC_URL=\"https://...\" cargo run -- price\n  or\n  ALCHEMY_API_KEY=\"YOUR_KEY\" cargo run -- price",
+                    rpc_url
+                )
+            } else {
+                format!("Failed to parse RPC URL: '{}'", rpc_url)
+            };
+            TrackerError::rpc(msg, Some(Box::new(e)))
+        })?;
 
     // Build provider with recommended fillers
     // The ProviderBuilder automatically includes:
