@@ -66,11 +66,14 @@ RPC_URL="your_rpc_url" cargo run -- watch --start-block 24456000
 **Free Tier:**
 - ✅ `eth_getLogs` with up to **10 block range** per request
 - ✅ Full access to Ethereum mainnet data
-- ❌ Cannot scan 100 blocks at once
+- ✅ **Watch command now batches queries** to stay within limits
 
 **Solution:**
-- Use `--blocks 5` for price command (stays within 10-block limit)
-- Use `--interval 12` for watch command (queries only new blocks since last check)
+- ✅ Use `--blocks 5` for price command (single query within 10-block limit)
+- ✅ Use `--interval 12` for watch command (now has automatic batching!)
+  - Queries are automatically batched into 10-block chunks
+  - Processes all blocks incrementally without hitting rate limits
+  - No more "10 block range" errors!
 - Upgrade to **PAYG** for unlimited block ranges
 
 ## Environment Configuration
