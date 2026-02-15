@@ -1,4 +1,14 @@
-# Justfile for eth-uniswap-alloy
+# Set environment variables
+export ALCHEMY_API_KEY=your_key
+export ANVIL_FORK_BLOCK=19000000
+
+# Run Anvil integration tests
+cargo test --test anvil_setup -- --ignored# Set environment variables
+export ALCHEMY_API_KEY=your_key
+export ANVIL_FORK_BLOCK=19000000
+
+# Run Anvil integration tests
+cargo test --test anvil_setup -- --ignored# Justfile for eth-uniswap-alloy
 # Run `just <recipe>` to execute commands
 
 # Default recipe (runs when just `just` is called)

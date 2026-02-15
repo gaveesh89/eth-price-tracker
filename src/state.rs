@@ -50,6 +50,9 @@
 //! ```
 
 use alloy::primitives::U256;
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::Path;
 use tracing::{debug, info, warn};
 
 use crate::error::{TrackerError, TrackerResult};
@@ -76,7 +79,7 @@ const MAX_RESERVE_VALUE: u128 = 1_000_000_000_000_000_000_000_000_000_000; // 10
 ///
 /// This struct is not thread-safe by default. If using across threads,
 /// wrap in `Arc<Mutex<State>>` or similar synchronization primitive.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct State {
     /// WETH reserve amount (token0 in the pair)
     weth_reserve: U256,
@@ -286,6 +289,57 @@ impl State {
     #[must_use]
     pub fn is_initialized(&self) -> bool {
         !self.weth_reserve.is_zero() && !self.usdt_reserve.is_zero()
+    }
+
+    /// Save state to a JSON file.
+    ///
+    /// Persists the current reserves and last processed block number to disk
+    /// for resuming after shutdown.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Path to the JSON file where state will be saved
+    ///
+    /// # Errors
+    ///
+    /// Returns error if file cannot be written or JSON serialization fails.
+    pub fn save<P: AsRef<Path>>(&self, path: P) -> TrackerResult<()> {
+        let json = serde_json::to_string_pretty(self)
+            .map_err(|e| TrackerError::state("Failed to serialize state", Some(Box::new(e))))?;
+        
+        fs::write(path.as_ref(), json)
+            .map_err(|e| TrackerError::state("Failed to write state file", Some(Box::new(e))))?;
+        
+        info!("State saved to {}", path.as_ref().display());
+        Ok(())
+    }
+
+    /// Load state from a JSON file.
+    ///
+    /// Restores reserves and last processed block number from a previously
+    /// saved state file. If the file doesn't exist, returns a new empty state.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Path to the JSON file to load state from
+    ///
+    /// # Errors
+    ///
+    /// Returns error if file exists but cannot be read or JSON is invalid.
+    pub fn load<P: AsRef<Path>>(path: P) -> TrackerResult<Self> {
+        if !path.as_ref().exists() {
+            info!("No state file found at {}, starting fresh", path.as_ref().display());
+            return Ok(Self::new());
+        }
+
+        let json = fs::read_to_string(path.as_ref())
+            .map_err(|e| TrackerError::state("Failed to read state file", Some(Box::new(e))))?;
+        
+        let state: Self = serde_json::from_str(&json)
+            .map_err(|e| TrackerError::state("Failed to deserialize state", Some(Box::new(e))))?;
+        
+        info!("State loaded from {}: last_block={}", path.as_ref().display(), state.last_block);
+        Ok(state)
     }
 }
 

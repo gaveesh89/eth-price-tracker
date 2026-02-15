@@ -153,38 +153,78 @@ async fn run_watch_command(interval: u64, start_block: Option<u64>) -> TrackerRe
     // Create provider
     let provider = create_provider(config.rpc_url()).await?;
 
-    // Initialize state tracker
-    let mut state = State::new();
+    // Initialize state tracker - load from file if exists
+    let mut state = State::load(config.state_file())
+        .unwrap_or_else(|e| {
+            warn!("Failed to load state: {}, starting fresh", e);
+            State::new()
+        });
     let mut last_price: Option<f64> = None;
 
-    // Determine starting block
+    // Determine starting block (use saved state if available)
     let latest_block = get_latest_block(&provider).await?;
-    let mut last_processed_block = start_block.unwrap_or_else(|| latest_block.saturating_sub(100));
+    let mut last_processed_block = if state.get_last_block() > 0 {
+        info!("Resuming from saved state at block: {}", state.get_last_block());
+        state.get_last_block()
+    } else {
+        start_block.unwrap_or_else(|| latest_block.saturating_sub(100))
+    };
     info!("Starting from block: {}", last_processed_block);
+
+    // Setup graceful shutdown handler
+    let shutdown = tokio::signal::ctrl_c();
+    tokio::pin!(shutdown);
 
     // Main watch loop
     loop {
-        match process_new_blocks(
-            &provider,
-            &mut state,
-            &mut last_processed_block,
-            &mut last_price,
-        )
-        .await
-        {
-            Ok(()) => {
-                // Successfully processed, wait for next interval
-                debug!("Waiting {} seconds for next check", interval);
+        tokio::select! {
+            // Handle shutdown signal
+            _ = &mut shutdown => {
+                info!("Shutdown signal received, cleaning up...");
+                println!();
+                println!("{}", "🛑 Shutting down gracefully...".yellow().bold());
+                
+                // Save final state
+                if let Err(e) = state.save(config.state_file()) {
+                    error!("Failed to save state on shutdown: {}", e);
+                    println!("{} Failed to save state: {}", "⚠️".red(), e);
+                } else {
+                    println!("{} State saved to {}", "✅".green(), config.state_file().display());
+                    println!("{} Last processed block: {}", "📍".cyan(), last_processed_block);
+                }
+                
+                println!("{}", "👋 Shutdown complete".green().bold());
+                info!("Shutdown complete");
+                break;
             }
-            Err(e) => {
-                error!("Error processing blocks: {}", e);
-                println!("{} {}", "⚠️  Error:".red().bold(), e);
+            
+            // Process blocks
+            _ = tokio::time::sleep(Duration::from_secs(0)) => {
+                match process_new_blocks(
+                    &provider,
+                    &mut state,
+                    &mut last_processed_block,
+                    &mut last_price,
+                )
+                .await
+                {
+                    Ok(()) => {
+                        // Successfully processed, wait for next interval
+                        debug!("Waiting {} seconds for next check", interval);
+                    }
+                    Err(e) => {
+                        error!("Error processing blocks: {}", e);
+                        println!("{} {}", "⚠️  Error:".red().bold(), e);
+                    }
+                }
+
+                // Wait before next check
+                tokio::time::sleep(Duration::from_secs(interval)).await;
             }
         }
-
-        // Wait before next check
-        tokio::time::sleep(Duration::from_secs(interval)).await;
     }
+
+    Ok(())
 }
 
 /// Process new blocks since last check (incremental).
