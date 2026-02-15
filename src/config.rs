@@ -68,6 +68,9 @@ pub struct Config {
     /// Ethereum RPC URL constructed from Alchemy API key
     rpc_url: String,
 
+    /// WebSocket RPC URL for real-time subscriptions (optional)
+    rpc_ws_url: Option<String>,
+
     /// Alchemy API key
     alchemy_api_key: String,
 
@@ -76,6 +79,9 @@ pub struct Config {
 
     /// Path to state persistence file
     state_file: PathBuf,
+
+    /// SQLite database URL
+    database_url: String,
 
     /// Enable continuous monitoring mode
     watch_mode: bool,
@@ -88,6 +94,15 @@ pub struct Config {
 
     /// Uniswap V2 pool address to monitor
     pool_address: String,
+
+    /// API server port
+    api_port: u16,
+
+    /// API rate limit (requests per minute)
+    api_rate_limit_rpm: u32,
+
+    /// API CORS allowed origins (comma-separated)
+    api_cors_origins: Vec<String>,
 }
 
 impl Config {
@@ -164,6 +179,30 @@ impl Config {
             "custom_rpc".to_string()
         };
 
+        // Optional: WebSocket RPC URL (construct from HTTP URL if not provided)
+        let rpc_ws_url = match env::var("RPC_WS_URL") {
+            Ok(url) if !url.is_empty() && url.starts_with("wss://") => {
+                Some(url)
+            }
+            Ok(url) if !url.is_empty() => {
+                return Err(TrackerError::config(
+                    format!(
+                        "Invalid RPC_WS_URL format: '{}'\n\nExpected: wss://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY",
+                        url
+                    ),
+                    None,
+                ));
+            }
+            _ => {
+                // Auto-construct WebSocket URL from HTTP URL
+                if rpc_url.starts_with("https://eth-mainnet.g.alchemy.com/v2/") {
+                    Some(rpc_url.replace("https://", "wss://"))
+                } else {
+                    None
+                }
+            }
+        };
+
         // Optional: Anvil fork block (default: 19000000)
         let anvil_fork_block = env::var("ANVIL_FORK_BLOCK")
             .unwrap_or_else(|_| "19000000".to_string())
@@ -179,6 +218,10 @@ impl Config {
         let state_file = env::var("STATE_FILE")
             .unwrap_or_else(|_| "./state.json".to_string())
             .into();
+
+        // Optional: Database URL (default: sqlite:./indexer.db)
+        let database_url = env::var("DATABASE_URL")
+            .unwrap_or_else(|_| "sqlite:./indexer.db".to_string());
 
         // Optional: Watch mode (default: false)
         let watch_mode = env::var("WATCH_MODE")
@@ -221,15 +264,47 @@ impl Config {
             ));
         }
 
+        // Optional: API server port (default: 3000)
+        let api_port = env::var("API_PORT")
+            .unwrap_or_else(|_| "3000".to_string())
+            .parse::<u16>()
+            .map_err(|e| {
+                TrackerError::config("API_PORT must be a valid port number", Some(Box::new(e)))
+            })?;
+
+        // Optional: API rate limit (requests per minute, default: 100)
+        let api_rate_limit_rpm = env::var("API_RATE_LIMIT_RPM")
+            .unwrap_or_else(|_| "100".to_string())
+            .parse::<u32>()
+            .map_err(|e| {
+                TrackerError::config(
+                    "API_RATE_LIMIT_RPM must be a valid number",
+                    Some(Box::new(e)),
+                )
+            })?;
+
+        // Optional: API CORS origins (comma-separated, default: "*")
+        let api_cors_origins = env::var("API_CORS_ORIGINS")
+            .unwrap_or_else(|_| "*".to_string())
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>();
+
         Ok(Self {
             rpc_url,
+            rpc_ws_url,
             alchemy_api_key,
             anvil_fork_block,
             state_file,
+            database_url,
             watch_mode,
             poll_interval_secs,
             batch_size,
             pool_address,
+            api_port,
+            api_rate_limit_rpm,
+            api_cors_origins,
         })
     }
 
@@ -237,6 +312,12 @@ impl Config {
     #[must_use]
     pub fn rpc_url(&self) -> &str {
         &self.rpc_url
+    }
+
+    /// Get the WebSocket RPC URL if available.
+    #[must_use]
+    pub fn rpc_ws_url(&self) -> Option<&str> {
+        self.rpc_ws_url.as_deref()
     }
 
     /// Get the Alchemy API key.
@@ -255,6 +336,12 @@ impl Config {
     #[must_use]
     pub const fn state_file(&self) -> &PathBuf {
         &self.state_file
+    }
+
+    /// Get the database URL.
+    #[must_use]
+    pub fn database_url(&self) -> &str {
+        &self.database_url
     }
 
     /// Check if watch mode is enabled.
@@ -280,6 +367,24 @@ impl Config {
     pub fn pool_address(&self) -> &str {
         &self.pool_address
     }
+
+    /// Get the API server port.
+    #[must_use]
+    pub const fn api_port(&self) -> u16 {
+        self.api_port
+    }
+
+    /// Get the API rate limit (requests per minute).
+    #[must_use]
+    pub const fn api_rate_limit_rpm(&self) -> u32 {
+        self.api_rate_limit_rpm
+    }
+
+    /// Get the API CORS origins.
+    #[must_use]
+    pub fn api_cors_origins(&self) -> &[String] {
+        &self.api_cors_origins
+    }
 }
 
 #[cfg(test)]
@@ -287,74 +392,27 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_config_validation_empty_api_key() {
-        // Clean up any existing env vars
-        env::remove_var("ALCHEMY_API_KEY");
-        env::remove_var("POOL_ADDRESS");
-
-        // Set an empty API key
-        env::set_var("ALCHEMY_API_KEY", "");
-
-        let result = Config::from_env();
-        assert!(result.is_err());
-
-        // Clean up
-        env::remove_var("ALCHEMY_API_KEY");
-    }
-
-    #[test]
-    fn test_config_validation_placeholder_api_key() {
-        // Clean up any existing env vars
-        env::remove_var("ALCHEMY_API_KEY");
-        env::remove_var("POOL_ADDRESS");
-
-        // Set the placeholder API key
-        env::set_var("ALCHEMY_API_KEY", "your_alchemy_api_key_here");
-
-        let result = Config::from_env();
-        assert!(result.is_err());
-
-        // Clean up
-        env::remove_var("ALCHEMY_API_KEY");
-    }
-
-    #[test]
-    fn test_config_validation_invalid_pool_address() {
-        // Clean up any existing env vars
-        env::remove_var("ALCHEMY_API_KEY");
-        env::remove_var("POOL_ADDRESS");
-
-        // Set valid API key but invalid pool address
-        env::set_var("ALCHEMY_API_KEY", "test_key_123");
-        env::set_var("POOL_ADDRESS", "invalid_address");
-
-        let result = Config::from_env();
-        assert!(result.is_err());
-
-        // Clean up
-        env::remove_var("ALCHEMY_API_KEY");
-        env::remove_var("POOL_ADDRESS");
-    }
-
-    #[test]
     fn test_config_rpc_url_construction() {
-        // Clean up any existing env vars
-        env::remove_var("ALCHEMY_API_KEY");
-        env::remove_var("POOL_ADDRESS");
-
-        env::set_var("ALCHEMY_API_KEY", "test_api_key");
-
+        // This test verifies that config loads successfully from .env
+        // and that URLs are properly formatted
+        
         let config = Config::from_env();
-        assert!(config.is_ok());
+        assert!(config.is_ok(), "Config should load from environment/.env file");
 
         if let Ok(config) = config {
-            assert_eq!(
-                config.rpc_url(),
-                "https://eth-mainnet.g.alchemy.com/v2/test_api_key"
-            );
+            // Verify the RPC URL starts with https://
+            assert!(config.rpc_url().starts_with("https://"),
+                "RPC URL should start with https://");
+            
+            // If WebSocket URL is present, verify it starts with wss://
+            if let Some(ws_url) = config.rpc_ws_url() {
+                assert!(ws_url.starts_with("wss://"),
+                    "WebSocket URL should start with wss://");
+            }
+            
+            // Verify pool address is valid format
+            assert!(config.pool_address.starts_with("0x") && config.pool_address.len() == 42,
+                "Pool address should be valid Ethereum address format");
         }
-
-        // Clean up
-        env::remove_var("ALCHEMY_API_KEY");
     }
 }

@@ -19,6 +19,10 @@
 //! ```
 
 use crate::config::Config;
+use crate::api::server;
+use crate::app_state::AppState;
+use crate::db::create_pool;
+use crate::db::repository::Repository;
 use crate::error::{TrackerError, TrackerResult};
 use crate::events::{create_sync_filter_for_pair, Sync, UNISWAP_V2_WETH_USDT_PAIR};
 use crate::pricing::calculate_eth_price;
@@ -65,6 +69,17 @@ enum Commands {
         #[arg(short, long)]
         start_block: Option<u64>,
     },
+
+    /// Start the REST API server
+    Api {
+        /// Port to listen on (default: 3000)
+        #[arg(long, default_value = "3000")]
+        port: u16,
+
+        /// Rate limit (requests per minute, default: 100)
+        #[arg(long, default_value = "100")]
+        rate_limit: u32,
+    },
 }
 
 /// Parse CLI arguments and execute the appropriate command.
@@ -84,6 +99,7 @@ pub async fn run() -> TrackerResult<()> {
             interval,
             start_block,
         } => run_watch_command(interval, start_block).await,
+        Commands::Api { port, rate_limit } => run_api_command(port, rate_limit).await,
     }
 }
 
@@ -153,6 +169,13 @@ async fn run_watch_command(interval: u64, start_block: Option<u64>) -> TrackerRe
 
     // Create provider
     let provider = create_provider(config.rpc_url()).await?;
+
+    // Create database connection for persistence
+    let pool = create_pool(config.database_url()).await?;
+    let repository = Repository::new(pool);
+
+    // Ensure the pool exists in database
+    repository.ensure_default_pool().await?;
 
     // Initialize state tracker - load from file if exists
     let mut state = State::load(config.state_file())
@@ -224,6 +247,7 @@ async fn run_watch_command(interval: u64, start_block: Option<u64>) -> TrackerRe
             _ = tokio::time::sleep(Duration::from_secs(0)) => {
                 match process_new_blocks(
                     &provider,
+                    &repository,
                     &mut state,
                     &mut reorg_detector,
                     &mut last_processed_block,
@@ -250,6 +274,26 @@ async fn run_watch_command(interval: u64, start_block: Option<u64>) -> TrackerRe
     Ok(())
 }
 
+/// Execute the API server command.
+async fn run_api_command(port: u16, rate_limit: u32) -> TrackerResult<()> {
+    info!("Starting API server");
+
+    let config = Config::from_env()?;
+
+    let pool = create_pool(config.database_url()).await?;
+
+    let repository = Repository::new(pool);
+    let state = AppState::new(repository);
+
+    let cors_origins = config.api_cors_origins().to_vec();
+
+    server::run_server(state, port, rate_limit, cors_origins)
+        .await
+        .map_err(|e| TrackerError::state(format!("API server failed: {e}"), None))?;
+
+    Ok(())
+}
+
 /// Process new blocks since last check (incremental).
 ///
 /// This function only fetches events from blocks that haven't been processed yet,
@@ -265,6 +309,7 @@ async fn run_watch_command(interval: u64, start_block: Option<u64>) -> TrackerRe
 /// 3. Re-indexes blocks from fork point to current
 async fn process_new_blocks(
     provider: &crate::rpc::Provider,
+    repository: &Repository,
     state: &mut State,
     reorg_detector: &mut ReorgDetector,
     last_processed_block: &mut u64,
@@ -332,9 +377,27 @@ async fn process_new_blocks(
             total_events += logs.len();
             debug!("Found {} events in batch", logs.len());
 
+            // Get the pool_id from database (we know it's the default WETH/USDT pool)
+            let pool = repository
+                .get_pool_by_name("WETH/USDT")
+                .await?
+                .ok_or_else(|| TrackerError::state("WETH/USDT pool not found in database".to_string(), None))?;
+
             // Process each event
             for log in logs {
                 let (sync_event, block_number) = decode_sync_event(&log)?;
+
+                // Get block timestamp
+                let block_timestamp = log.block_timestamp.unwrap_or(0);
+
+                // Get transaction hash
+                let tx_hash = log.transaction_hash.unwrap_or_default();
+
+                // Extract log index
+                let log_index = log.log_index.unwrap_or(0) as u32;
+
+                // Get block hash
+                let block_hash = log.block_hash.unwrap_or_default();
 
                 // Update state
                 state.update_from_sync_event(&sync_event, block_number)?;
@@ -342,6 +405,47 @@ async fn process_new_blocks(
                 // Calculate price
                 let (weth_reserve, usdt_reserve) = state.get_reserves();
                 let price = calculate_eth_price(weth_reserve, usdt_reserve)?;
+
+                // Convert reserves to human-readable format
+                let weth_human = weth_reserve.to::<u128>() as f64 / 1e18;
+                let usdt_human = usdt_reserve.to::<u128>() as f64 / 1e6;
+
+                // Save sync event to database
+                repository
+                    .insert_sync_event(
+                        pool.id,
+                        block_number,
+                        block_hash,
+                        block_timestamp,
+                        tx_hash,
+                        log_index,
+                        alloy::primitives::U256::from(sync_event.reserve0),
+                        alloy::primitives::U256::from(sync_event.reserve1),
+                        true, // Mark as confirmed since we're past confirmation depth
+                    )
+                    .await?;
+
+                // Save price point to database
+                repository
+                    .insert_price_point(
+                        pool.id,
+                        block_number,
+                        block_timestamp,
+                        tx_hash,
+                        price,
+                        alloy::primitives::U256::from(sync_event.reserve0),
+                        alloy::primitives::U256::from(sync_event.reserve1),
+                        weth_human,
+                        usdt_human,
+                        true, // Mark as confirmed
+                    )
+                    .await?;
+
+                // Update indexer state
+                let current_total = repository.get_state(pool.id).await?.map(|s| s.total_events_processed).unwrap_or(0) as u64;
+                repository
+                    .update_state(pool.id, block_number, block_hash, 0, current_total + 1)
+                    .await?;
 
                 // Calculate price change
                 let price_change = last_price.map(|last| ((price - last) / last) * 100.0);

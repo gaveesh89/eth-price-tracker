@@ -20,7 +20,7 @@
 use crate::error::{TrackerError, TrackerResult};
 use alloy::providers::{Provider as AlloProvider, ProviderBuilder, RootProvider};
 use alloy::transports::http::{Client, Http};
-use tracing::{debug, info, warn};
+use tracing::{debug, info, warn, instrument};
 
 /// Type alias for the HTTP provider with recommended fillers.
 ///
@@ -61,12 +61,16 @@ pub type Provider = RootProvider<Http<Client>>;
 /// # async fn example() -> TrackerResult<()> {
 /// let provider = create_provider("https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY").await?;
 /// # Ok(())
-/// # }
-/// ```
+/// # }  /// ```
 #[allow(clippy::unused_async)]
+#[instrument(skip(rpc_url), fields(rpc_host = tracing::field::Empty))]
 pub async fn create_provider(rpc_url: &str) -> TrackerResult<Provider> {
     info!("Initializing RPC provider");
-    debug!("RPC URL: {}", rpc_url);
+    
+    // Extract host for logging (without sensitive API key)
+    let host = rpc_url.split("/v2/").next().unwrap_or("unknown");
+    tracing::Span::current().record("rpc_host", host);
+    debug!(rpc_host = host, "Creating HTTP provider");
 
     // Parse the RPC URL
     let url = rpc_url
@@ -128,15 +132,25 @@ pub async fn create_provider(rpc_url: &str) -> TrackerResult<Provider> {
 /// # Ok(())
 /// # }
 /// ```
+#[instrument(skip(provider), fields(block = tracing::field::Empty, duration_ms = tracing::field::Empty))]
 pub async fn get_latest_block(provider: &Provider) -> TrackerResult<u64> {
     debug!("Fetching latest block number");
 
+    let start = std::time::Instant::now();
     let block_number = provider
         .get_block_number()
         .await
         .map_err(|e| TrackerError::rpc("Failed to fetch latest block number", Some(Box::new(e))))?;
+    
+    let duration = start.elapsed();
+    tracing::Span::current().record("block", block_number);
+    tracing::Span::current().record("duration_ms", duration.as_millis() as u64);
 
-    info!("Latest block number: {}", block_number);
+    info!(
+        block = block_number,
+        duration_ms = duration.as_millis(),
+        "Latest block fetched"
+    );
 
     Ok(block_number)
 }
@@ -171,16 +185,17 @@ pub async fn get_latest_block(provider: &Provider) -> TrackerResult<u64> {
 /// # Ok(())
 /// # }
 /// ```
+#[instrument(skip(provider))]
 pub async fn check_connection(provider: &Provider) -> TrackerResult<()> {
     debug!("Checking provider connection health");
 
     match get_latest_block(provider).await {
         Ok(block) => {
-            info!("Connection check successful - latest block: {}", block);
+            info!(block = block, "Connection check successful");
             Ok(())
         }
         Err(e) => {
-            warn!("Connection check failed: {}", e);
+            warn!(error = %e, "Connection check failed");
             Err(TrackerError::rpc(
                 format!("Provider connection health check failed: {e}"),
                 None,

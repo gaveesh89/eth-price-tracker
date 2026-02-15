@@ -25,27 +25,40 @@
 //!
 //! All errors bubble up with context via `TrackerResult<T>`.
 
-use eth_uniswap_alloy::cli;
-use tracing_subscriber::EnvFilter;
+use eth_uniswap_alloy::{cli, observability};
+use tracing::error;
 
 /// Entry point for the Uniswap V2 event indexer.
 ///
 /// Initializes:
 /// - Tokio async runtime (via `#[tokio::main]`)
-/// - Structured logging with tracing
-/// - Environment filter (defaults to "info" level)
+/// - Production-grade structured logging with tracing
+/// - Environment-based filtering (RUST_LOG, LOG_JSON, LOG_FILE)
 ///
 /// Then delegates to the CLI module for all business logic.
 #[tokio::main]
 async fn main() {
-    // Initialize structured logging with environment-based filtering
-    // Can be controlled via RUST_LOG environment variable
-    // Example: RUST_LOG=debug cargo run
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
-        )
-        .init();
+    // Initialize structured logging FIRST (before any other operations)
+    // Configuration can be controlled via environment variables:
+    // - RUST_LOG: Set log level (e.g., "debug", "info", "trace")
+    // - LOG_JSON: Enable JSON output for production ("true" or "false")
+    // - LOG_FILE: Write logs to file with daily rotation
+    //
+    // Examples:
+    //   RUST_LOG=debug cargo run -- watch
+    //   RUST_LOG=eth_uniswap_alloy=trace,sqlx=warn cargo run
+    //   LOG_JSON=true LOG_FILE=./logs/indexer.log cargo run
+    let log_level = std::env::var("RUST_LOG").ok();
+    let log_file = std::env::var("LOG_FILE").ok().map(std::path::PathBuf::from);
+    let json_output = std::env::var("LOG_JSON")
+        .unwrap_or_else(|_| "false".to_string())
+        .parse::<bool>()
+        .unwrap_or(false);
+
+    if let Err(e) = observability::init_tracing(log_level, log_file, json_output) {
+        eprintln!("Failed to initialize tracing: {e}");
+        std::process::exit(1);
+    }
 
     // Run CLI - all layer orchestration happens inside cli::run()
     // The CLI module coordinates:
@@ -56,6 +69,7 @@ async fn main() {
     //   5. Price calculation (ETH/USDT)
     //   6. Output formatting (colored terminal output)
     if let Err(e) = cli::run().await {
+        error!(error = %e, "Application error");
         eprintln!("Error: {e}");
         std::process::exit(1);
     }

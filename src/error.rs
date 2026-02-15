@@ -115,6 +115,68 @@ pub enum TrackerError {
         /// Optional underlying error
         source: Option<Box<dyn std::error::Error + Send + Sync>>,
     },
+
+    /// Database operation errors.
+    ///
+    /// Variants include:
+    /// - Connection failures
+    /// - Query execution errors
+    /// - Migration failures
+    /// - Constraint violations
+    /// - Transaction errors
+    DatabaseError {
+        /// Human-readable error message
+        message: String,
+        /// Optional underlying error
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    },
+
+    /// WebSocket connection errors.
+    ///
+    /// Variants include:
+    /// - Failed to establish WebSocket connection
+    /// - Authentication failures
+    /// - Invalid WebSocket URL
+    /// - Network connectivity issues
+    WebSocketConnectionError {
+        /// Human-readable error message
+        message: String,
+        /// Optional underlying error
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    },
+
+    /// WebSocket subscription errors.
+    ///
+    /// Variants include:
+    /// - Failed to create subscription
+    /// - Invalid filter parameters
+    /// - Subscription dropped unexpectedly
+    WebSocketSubscriptionError {
+        /// Human-readable error message
+        message: String,
+        /// Optional underlying error
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    },
+
+    /// WebSocket disconnection error.
+    ///
+    /// Occurs when the WebSocket stream ends unexpectedly
+    /// and reconnection is required.
+    WebSocketDisconnected {
+        /// Human-readable error message
+        message: String,
+    },
+
+    /// Max reconnection attempts exceeded.
+    ///
+    /// Occurs when the WebSocket fails to reconnect after
+    /// multiple attempts with exponential backoff.
+    MaxReconnectAttemptsExceeded {
+        /// Number of attempts made
+        attempts: u32,
+        /// Last error encountered
+        last_error: String,
+    },
 }
 
 impl TrackerError {
@@ -222,6 +284,104 @@ impl TrackerError {
             source,
         }
     }
+
+    /// Create a new database error.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use eth_uniswap_alloy::error::TrackerError;
+    ///
+    /// let err = TrackerError::database("Connection failed", None);
+    /// assert!(matches!(err, TrackerError::DatabaseError { .. }));
+    /// ```
+    #[must_use]
+    pub fn database(
+        message: impl Into<String>,
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    ) -> Self {
+        Self::DatabaseError {
+            message: message.into(),
+            source,
+        }
+    }
+
+    /// Create a new WebSocket connection error.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use eth_uniswap_alloy::error::TrackerError;
+    ///
+    /// let err = TrackerError::websocket_connection("Connection refused", None);
+    /// assert!(matches!(err, TrackerError::WebSocketConnectionError { .. }));
+    /// ```
+    #[must_use]
+    pub fn websocket_connection(
+        message: impl Into<String>,
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    ) -> Self {
+        Self::WebSocketConnectionError {
+            message: message.into(),
+            source,
+        }
+    }
+
+    /// Create a new WebSocket subscription error.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use eth_uniswap_alloy::error::TrackerError;
+    ///
+    /// let err = TrackerError::websocket_subscription("Subscription failed", None);
+    /// assert!(matches!(err, TrackerError::WebSocketSubscriptionError { .. }));
+    /// ```
+    #[must_use]
+    pub fn websocket_subscription(
+        message: impl Into<String>,
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    ) -> Self {
+        Self::WebSocketSubscriptionError {
+            message: message.into(),
+            source,
+        }
+    }
+
+    /// Create a new WebSocket disconnection error.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use eth_uniswap_alloy::error::TrackerError;
+    ///
+    /// let err = TrackerError::websocket_disconnected("Stream ended unexpectedly");
+    /// assert!(matches!(err, TrackerError::WebSocketDisconnected { .. }));
+    /// ```
+    #[must_use]
+    pub fn websocket_disconnected(message: impl Into<String>) -> Self {
+        Self::WebSocketDisconnected {
+            message: message.into(),
+        }
+    }
+
+    /// Create a max reconnect attempts exceeded error.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use eth_uniswap_alloy::error::TrackerError;
+    ///
+    /// let err = TrackerError::max_reconnect_exceeded(10, "Connection timeout");
+    /// assert!(matches!(err, TrackerError::MaxReconnectAttemptsExceeded { .. }));
+    /// ```
+    #[must_use]
+    pub fn max_reconnect_exceeded(attempts: u32, last_error: impl Into<String>) -> Self {
+        Self::MaxReconnectAttemptsExceeded {
+            attempts,
+            last_error: last_error.into(),
+        }
+    }
 }
 
 impl fmt::Display for TrackerError {
@@ -232,6 +392,26 @@ impl fmt::Display for TrackerError {
             Self::DecodingError { message, .. } => write!(f, "Decoding error: {message}"),
             Self::StateError { message, .. } => write!(f, "State error: {message}"),
             Self::MathError { message, .. } => write!(f, "Math error: {message}"),
+            Self::DatabaseError { message, .. } => write!(f, "Database error: {message}"),
+            Self::WebSocketConnectionError { message, .. } => {
+                write!(f, "WebSocket connection error: {message}")
+            }
+            Self::WebSocketSubscriptionError { message, .. } => {
+                write!(f, "WebSocket subscription error: {message}")
+            }
+            Self::WebSocketDisconnected { message } => {
+                write!(f, "WebSocket disconnected: {message}")
+            }
+            Self::MaxReconnectAttemptsExceeded {
+                attempts,
+                last_error,
+            } => {
+                write!(
+                    f,
+                    "Max reconnection attempts ({}) exceeded. Last error: {}",
+                    attempts, last_error
+                )
+            }
         }
     }
 }
@@ -243,9 +423,13 @@ impl std::error::Error for TrackerError {
             | Self::RpcError { source, .. }
             | Self::DecodingError { source, .. }
             | Self::StateError { source, .. }
-            | Self::MathError { source, .. } => source
+            | Self::MathError { source, .. }
+            | Self::DatabaseError { source, .. }
+            | Self::WebSocketConnectionError { source, .. }
+            | Self::WebSocketSubscriptionError { source, .. } => source
                 .as_ref()
                 .map(|e| e.as_ref() as &dyn std::error::Error),
+            Self::WebSocketDisconnected { .. } | Self::MaxReconnectAttemptsExceeded { .. } => None,
         }
     }
 }

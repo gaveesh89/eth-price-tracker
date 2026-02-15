@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ETH Price Tracker</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,600&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['Space Grotesk', 'ui-sans-serif', 'system-ui'],
+            body: ['Newsreader', 'ui-serif', 'Georgia']
+          },
+          colors: {
+            ink: '#0f172a',
+            mist: '#e2e8f0',
+            accent: '#0ea5e9',
+            success: '#22c55e',
+            danger: '#ef4444',
+            dusk: '#0b1220'
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+
+    body {
+      font-family: 'Newsreader', ui-serif, Georgia, serif;
+    }
+
+    .bg-grid {
+      background-image:
+        radial-gradient(circle at 1px 1px, rgba(148, 163, 184, 0.18) 1px, transparent 0),
+        radial-gradient(circle at 1px 1px, rgba(148, 163, 184, 0.08) 1px, transparent 0);
+      background-size: 24px 24px, 6px 6px;
+      background-position: 0 0, 12px 12px;
+    }
+
+    .soft-glow {
+      box-shadow: 0 24px 80px rgba(14, 165, 233, 0.18);
+    }
+
+    .pulse-subtle {
+      animation: pulse-subtle 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    @keyframes pulse-subtle {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.75; }
+    }
+
+    .fade-in {
+      animation: fade-in 0.6s ease-out both;
+    }
+
+    @keyframes fade-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+
+<body class="min-h-screen bg-slate-50 dark:bg-dusk text-slate-900 dark:text-slate-100 bg-grid">
+  <header class="sticky top-0 z-30 border-b border-slate-200/60 dark:border-slate-700/70 bg-white/80 dark:bg-slate-900/80 backdrop-blur">
+    <div class="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
+      <div class="flex items-center gap-4">
+        <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-accent to-slate-800 flex items-center justify-center text-white font-bold text-xl font-display">E</div>
+        <div>
+          <p class="text-sm uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400 font-display">ETH Price Tracker</p>
+          <h1 class="text-xl font-display font-semibold">Uniswap V2 Live Intelligence</h1>
+        </div>
+      </div>
+      <div class="flex items-center gap-4">
+        <div id="connection-status" class="flex items-center gap-2 text-sm">
+          <span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+          <span class="text-slate-500 dark:text-slate-400">Connecting...</span>
+        </div>
+        <button id="theme-toggle" class="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">
+          <span id="theme-icon-dark" class="block dark:hidden">Light</span>
+          <span id="theme-icon-light" class="hidden dark:block">Dark</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-6 py-10 space-y-6">
+    <section class="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+      <div class="bg-white/80 dark:bg-slate-900/80 border border-slate-200/70 dark:border-slate-700/70 rounded-3xl p-8 soft-glow fade-in">
+        <div class="flex items-start justify-between gap-6">
+          <div>
+            <p class="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400 font-display">WETH / USDT</p>
+            <div class="flex items-end gap-4 mt-3">
+              <span id="current-price" class="text-5xl font-display font-semibold">$---.--</span>
+              <span id="price-change" class="text-lg font-display">--.--%</span>
+            </div>
+          </div>
+          <div class="text-right">
+            <p class="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400 font-display">Block</p>
+            <p id="current-block" class="text-xl font-display">---------</p>
+            <p id="last-update" class="text-xs text-slate-400 mt-2">Updated -- seconds ago</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4 mt-8">
+          <div class="rounded-2xl bg-slate-50 dark:bg-slate-800/60 p-4 border border-slate-200/60 dark:border-slate-700/60">
+            <p class="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 font-display">WETH Reserve</p>
+            <p id="weth-reserve" class="text-lg font-display mt-2">--- WETH</p>
+          </div>
+          <div class="rounded-2xl bg-slate-50 dark:bg-slate-800/60 p-4 border border-slate-200/60 dark:border-slate-700/60">
+            <p class="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 font-display">USDT Reserve</p>
+            <p id="usdt-reserve" class="text-lg font-display mt-2">--- USDT</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white/80 dark:bg-slate-900/80 border border-slate-200/70 dark:border-slate-700/70 rounded-3xl p-6 fade-in">
+        <h2 class="text-lg font-display font-semibold">System Status</h2>
+        <div class="space-y-4 mt-5">
+          <div class="flex items-center justify-between">
+            <span class="text-sm text-slate-500 dark:text-slate-400">API Health</span>
+            <span id="api-status" class="text-sm font-display">Checking...</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-sm text-slate-500 dark:text-slate-400">WebSocket</span>
+            <span id="ws-status" class="text-sm font-display">Disconnected</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-sm text-slate-500 dark:text-slate-400">Last Update</span>
+            <span id="time-since" class="text-sm font-display">--</span>
+          </div>
+        </div>
+        <div class="mt-6 border-t border-slate-200/60 dark:border-slate-700/60 pt-5">
+          <p class="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400 font-display">Quick Actions</p>
+          <div class="flex flex-wrap gap-2 mt-4">
+            <button class="period-btn px-3 py-2 rounded-xl bg-accent text-white text-xs font-display" data-period="1h">1H</button>
+            <button class="period-btn px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-display" data-period="24h">24H</button>
+            <button class="period-btn px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-display" data-period="7d">7D</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="bg-white/80 dark:bg-slate-900/80 border border-slate-200/70 dark:border-slate-700/70 rounded-3xl p-6 fade-in">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-lg font-display font-semibold">Price Trajectory</h3>
+          <p class="text-sm text-slate-500 dark:text-slate-400">Interactive 24 hour history with zoom and pan.</p>
+        </div>
+        <div class="text-xs uppercase tracking-[0.3em] text-slate-400 font-display">Chart.js</div>
+      </div>
+      <div class="relative h-80 mt-6">
+        <canvas id="price-chart"></canvas>
+      </div>
+    </section>
+
+    <section class="grid gap-4 md:grid-cols-4 fade-in">
+      <div class="bg-white/80 dark:bg-slate-900/80 border border-slate-200/70 dark:border-slate-700/70 rounded-2xl p-5">
+        <p class="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400 font-display">24h High</p>
+        <p id="stat-high" class="text-2xl font-display mt-3">$---.--</p>
+      </div>
+      <div class="bg-white/80 dark:bg-slate-900/80 border border-slate-200/70 dark:border-slate-700/70 rounded-2xl p-5">
+        <p class="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400 font-display">24h Low</p>
+        <p id="stat-low" class="text-2xl font-display mt-3">$---.--</p>
+      </div>
+      <div class="bg-white/80 dark:bg-slate-900/80 border border-slate-200/70 dark:border-slate-700/70 rounded-2xl p-5">
+        <p class="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400 font-display">Average</p>
+        <p id="stat-avg" class="text-2xl font-display mt-3">$---.--</p>
+      </div>
+      <div class="bg-white/80 dark:bg-slate-900/80 border border-slate-200/70 dark:border-slate-700/70 rounded-2xl p-5">
+        <p class="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400 font-display">Events</p>
+        <p id="stat-volume" class="text-2xl font-display mt-3">---</p>
+      </div>
+    </section>
+
+    <section class="bg-white/80 dark:bg-slate-900/80 border border-slate-200/70 dark:border-slate-700/70 rounded-3xl p-6 fade-in">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-display font-semibold">Recent Events</h3>
+        <span class="text-xs uppercase tracking-[0.3em] text-slate-400 font-display">Last 10 Syncs</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="border-b border-slate-200/60 dark:border-slate-700/60 text-slate-500 dark:text-slate-400">
+            <tr>
+              <th class="py-3 text-left">Block</th>
+              <th class="py-3 text-left">Time</th>
+              <th class="py-3 text-left">Price</th>
+              <th class="py-3 text-left">Change</th>
+              <th class="py-3 text-left">Transaction</th>
+            </tr>
+          </thead>
+          <tbody id="events-table" class="divide-y divide-slate-200/60 dark:divide-slate-700/60"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="border-t border-slate-200/60 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/70">
+    <div class="max-w-6xl mx-auto px-6 py-6 text-sm text-slate-500 dark:text-slate-400">
+      ETH Price Tracker v1.0.0 | API: <span id="api-footer" class="font-display">Checking...</span>
+    </div>
+  </footer>
+
+  <script>
+    const API_BASE = window.location.origin;
+    const API_URL = `${API_BASE}/api/v1`;
+    const WS_BASE = window.location.protocol === 'https:'
+      ? `wss://${window.location.host}/api/v1`
+      : `ws://${window.location.host}/api/v1`;
+
+    class APIClient {
+      async getCurrentPrice(pool = 'WETH-USDT') {
+        const response = await fetch(`${API_URL}/price/current/${pool}`);
+        if (!response.ok) throw new Error('Failed to fetch current price');
+        return response.json();
+      }
+
+      async getPriceHistory(pool = 'WETH-USDT', params = {}) {
+        const queryString = new URLSearchParams(params).toString();
+        const url = `${API_URL}/price/history/${pool}?${queryString}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Failed to fetch history');
+        return response.json();
+      }
+
+      async getStats(pool = 'WETH-USDT', period = '24h') {
+        const response = await fetch(`${API_URL}/stats/${pool}?period=${period}`);
+        if (!response.ok) throw new Error('Failed to fetch stats');
+        return response.json();
+      }
+
+      async getEvents(pool = 'WETH-USDT', limit = 10) {
+        const response = await fetch(`${API_URL}/events/${pool}?limit=${limit}`);
+        if (!response.ok) throw new Error('Failed to fetch events');
+        return response.json();
+      }
+
+      async getHealth() {
+        const response = await fetch(`${API_URL}/health`);
+        if (!response.ok) throw new Error('Health check failed');
+        return response.json();
+      }
+    }
+
+    class WebSocketClient {
+      constructor(pool = 'WETH-USDT') {
+        this.pool = pool;
+        this.ws = null;
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 10;
+        this.onMessage = null;
+        this.onStatusChange = null;
+      }
+
+      connect() {
+        const url = `${WS_BASE}/stream/${this.pool}`;
+        this.ws = new WebSocket(url);
+
+        this.ws.onopen = () => {
+          this.reconnectAttempts = 0;
+          this.updateStatus('connected');
+        };
+
+        this.ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (this.onMessage) this.onMessage(data);
+          } catch (err) {
+            console.error('Failed to parse WebSocket message:', err);
+          }
+        };
+
+        this.ws.onerror = () => {
+          this.updateStatus('error');
+        };
+
+        this.ws.onclose = () => {
+          this.updateStatus('disconnected');
+          this.scheduleReconnect();
+        };
+      }
+
+      scheduleReconnect() {
+        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+          this.updateStatus('failed');
+          return;
+        }
+
+        this.reconnectAttempts += 1;
+        const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+        setTimeout(() => this.connect(), delay);
+      }
+
+      updateStatus(status) {
+        if (this.onStatusChange) this.onStatusChange(status);
+      }
+
+      disconnect() {
+        if (this.ws) this.ws.close();
+      }
+    }
+
+    class PriceChart {
+      constructor(canvasId) {
+        const ctx = document.getElementById(canvasId).getContext('2d');
+        this.chart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: [],
+            datasets: [{
+              label: 'ETH Price (USDT)',
+              data: [],
+              borderColor: '#0ea5e9',
+              backgroundColor: 'rgba(14, 165, 233, 0.12)',
+              borderWidth: 2,
+              fill: true,
+              tension: 0.35,
+              pointRadius: 0,
+              pointHoverRadius: 6
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+              intersect: false,
+              mode: 'index'
+            },
+            plugins: {
+              legend: { display: false },
+              zoom: {
+                zoom: {
+                  wheel: { enabled: true },
+                  pinch: { enabled: true },
+                  mode: 'x'
+                },
+                pan: { enabled: true, mode: 'x' }
+              }
+            },
+            scales: {
+              x: {
+                grid: { color: 'rgba(148, 163, 184, 0.2)', drawBorder: false },
+                ticks: { maxTicksLimit: 8, color: '#94a3b8' }
+              },
+              y: {
+                grid: { color: 'rgba(148, 163, 184, 0.2)', drawBorder: false },
+                ticks: {
+                  color: '#94a3b8',
+                  callback: (value) => '$' + value.toFixed(0)
+                }
+              }
+            }
+          }
+        });
+      }
+
+      updateData(priceHistory) {
+        const labels = priceHistory.map(p => new Date(p.timestamp));
+        const data = priceHistory.map(p => p.price);
+        this.chart.data.labels = labels;
+        this.chart.data.datasets[0].data = data;
+        this.chart.update('none');
+      }
+
+      addDataPoint(timestamp, price) {
+        this.chart.data.labels.push(new Date(timestamp));
+        this.chart.data.datasets[0].data.push(price);
+        if (this.chart.data.labels.length > 200) {
+          this.chart.data.labels.shift();
+          this.chart.data.datasets[0].data.shift();
+        }
+        this.chart.update('none');
+      }
+
+      updateTheme(isDark) {
+        const grid = isDark ? 'rgba(51, 65, 85, 0.6)' : 'rgba(148, 163, 184, 0.2)';
+        const ticks = isDark ? '#94a3b8' : '#64748b';
+        this.chart.options.scales.x.grid.color = grid;
+        this.chart.options.scales.x.ticks.color = ticks;
+        this.chart.options.scales.y.grid.color = grid;
+        this.chart.options.scales.y.ticks.color = ticks;
+        this.chart.update();
+      }
+    }
+
+    class Dashboard {
+      constructor() {
+        this.api = new APIClient();
+        this.ws = new WebSocketClient('WETH-USDT');
+        this.chart = new PriceChart('price-chart');
+        this.lastPrice = null;
+        this.lastUpdateTime = Date.now();
+
+        this.init();
+      }
+
+      async init() {
+        this.initTheme();
+        await this.loadInitialData();
+        await this.loadRecentEvents();
+        this.connectWebSocket();
+        setInterval(() => this.updateTimestamp(), 1000);
+        setInterval(() => this.checkHealth(), 30000);
+        this.setupEventListeners();
+      }
+
+      initTheme() {
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        if (savedTheme === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+
+        document.getElementById('theme-toggle').addEventListener('click', () => {
+          const isDark = document.documentElement.classList.toggle('dark');
+          localStorage.setItem('theme', isDark ? 'dark' : 'light');
+          this.chart.updateTheme(isDark);
+        });
+      }
+
+      async loadInitialData() {
+        try {
+          const currentPrice = await this.api.getCurrentPrice();
+          this.updateCurrentPrice(currentPrice);
+
+          const history = await this.api.getPriceHistory('WETH-USDT', {
+            page: 1,
+            page_size: 200
+          });
+          this.chart.updateData(history.data.reverse());
+
+          const stats = await this.api.getStats('WETH-USDT', '24h');
+          this.updateStats(stats);
+        } catch (err) {
+          console.error('Failed to load initial data:', err);
+        }
+      }
+
+      async loadRecentEvents() {
+        try {
+          const response = await this.api.getEvents('WETH-USDT', 10);
+          response.events.forEach(event => this.addEventToTable({
+            block_number: event.block_number,
+            price: this.lastPrice || 0,
+            timestamp: event.timestamp,
+            tx_hash: event.tx_hash
+          }, false));
+        } catch (err) {
+          console.error('Failed to load events:', err);
+        }
+      }
+
+      connectWebSocket() {
+        this.ws.onMessage = (data) => {
+          if (data.event_type === 'price_update') {
+            this.handlePriceUpdate(data);
+          }
+        };
+
+        this.ws.onStatusChange = (status) => this.updateConnectionStatus(status);
+        this.ws.connect();
+      }
+
+      handlePriceUpdate(data) {
+        this.updateCurrentPrice(data);
+        this.chart.addDataPoint(data.timestamp, data.price);
+        this.lastUpdateTime = Date.now();
+        this.addEventToTable(data, true);
+
+        if (Math.random() < 0.1) {
+          this.refreshStats();
+        }
+      }
+
+      updateCurrentPrice(data) {
+        const priceEl = document.getElementById('current-price');
+        const changeEl = document.getElementById('price-change');
+        const blockEl = document.getElementById('current-block');
+        const wethEl = document.getElementById('weth-reserve');
+        const usdtEl = document.getElementById('usdt-reserve');
+
+        priceEl.textContent = `$${data.price.toFixed(2)}`;
+
+        if (data.change_24h !== undefined && data.change_24h !== null) {
+          const change = data.change_24h;
+          const isPositive = change >= 0;
+          changeEl.textContent = `${isPositive ? '+' : ''}${change.toFixed(2)}%`;
+          changeEl.className = `text-lg font-display ${isPositive ? 'text-success' : 'text-danger'}`;
+        }
+
+        blockEl.textContent = data.block_number.toLocaleString();
+        wethEl.textContent = `${data.reserves.weth.toFixed(2)} WETH`;
+        usdtEl.textContent = `${data.reserves.usdt.toLocaleString()} USDT`;
+        this.lastPrice = data.price;
+      }
+
+      updateStats(stats) {
+        document.getElementById('stat-high').textContent = `$${stats.high.toFixed(2)}`;
+        document.getElementById('stat-low').textContent = `$${stats.low.toFixed(2)}`;
+        document.getElementById('stat-avg').textContent = `$${stats.average.toFixed(2)}`;
+        document.getElementById('stat-volume').textContent = stats.volume_events.toLocaleString();
+      }
+
+      addEventToTable(data, prepend) {
+        const tbody = document.getElementById('events-table');
+        const row = document.createElement('tr');
+        row.className = 'text-sm';
+
+        const change = this.lastPrice ? ((data.price - this.lastPrice) / this.lastPrice * 100) : 0;
+        const changeIcon = change > 0 ? 'up' : change < 0 ? 'down' : 'flat';
+        const changeColor = change > 0 ? 'text-success' : change < 0 ? 'text-danger' : 'text-slate-500';
+
+        row.innerHTML = `
+          <td class="py-3 font-display">${data.block_number.toLocaleString()}</td>
+          <td class="py-3">${new Date(data.timestamp).toLocaleTimeString()}</td>
+          <td class="py-3 font-display">$${data.price.toFixed(2)}</td>
+          <td class="py-3 ${changeColor}">${change.toFixed(2)}% ${changeIcon}</td>
+          <td class="py-3 font-mono text-xs">${data.tx_hash ? data.tx_hash.substring(0, 10) + '...' : 'N/A'}</td>
+        `;
+
+        if (prepend) {
+          tbody.insertBefore(row, tbody.firstChild);
+        } else {
+          tbody.appendChild(row);
+        }
+
+        while (tbody.children.length > 10) {
+          tbody.removeChild(tbody.lastChild);
+        }
+      }
+
+      updateTimestamp() {
+        const secondsAgo = Math.floor((Date.now() - this.lastUpdateTime) / 1000);
+        const el = document.getElementById('last-update');
+        const elTime = document.getElementById('time-since');
+
+        if (secondsAgo < 60) {
+          el.textContent = `Updated ${secondsAgo} seconds ago`;
+          elTime.textContent = `${secondsAgo}s ago`;
+        } else if (secondsAgo < 3600) {
+          const minutes = Math.floor(secondsAgo / 60);
+          el.textContent = `Updated ${minutes} minutes ago`;
+          elTime.textContent = `${minutes}m ago`;
+        } else {
+          const hours = Math.floor(secondsAgo / 3600);
+          el.textContent = `Updated ${hours} hours ago`;
+          elTime.textContent = `${hours}h ago`;
+        }
+      }
+
+      updateConnectionStatus(status) {
+        const statusEl = document.getElementById('connection-status');
+        const wsEl = document.getElementById('ws-status');
+        const indicators = {
+          connected: { color: 'bg-success', text: 'Connected', pulse: 'pulse-subtle' },
+          disconnected: { color: 'bg-slate-400', text: 'Disconnected', pulse: '' },
+          error: { color: 'bg-danger', text: 'Error', pulse: 'pulse-subtle' },
+          failed: { color: 'bg-danger', text: 'Failed', pulse: '' }
+        };
+
+        const indicator = indicators[status] || indicators.disconnected;
+        wsEl.textContent = indicator.text;
+
+        statusEl.innerHTML = `
+          <span class="w-2.5 h-2.5 rounded-full ${indicator.color} ${indicator.pulse}"></span>
+          <span class="text-slate-500 dark:text-slate-400">${indicator.text}</span>
+        `;
+      }
+
+      async checkHealth() {
+        try {
+          const health = await this.api.getHealth();
+          document.getElementById('api-status').textContent = health.status;
+          document.getElementById('api-footer').textContent = health.status;
+        } catch (err) {
+          document.getElementById('api-status').textContent = 'offline';
+          document.getElementById('api-footer').textContent = 'offline';
+        }
+      }
+
+      async refreshStats() {
+        try {
+          const stats = await this.api.getStats('WETH-USDT', '24h');
+          this.updateStats(stats);
+        } catch (err) {
+          console.error('Failed to refresh stats:', err);
+        }
+      }
+
+      setupEventListeners() {
+        document.querySelectorAll('.period-btn').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            document.querySelectorAll('.period-btn').forEach(b => {
+              b.className = 'period-btn px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-display';
+            });
+            e.target.className = 'period-btn px-3 py-2 rounded-xl bg-accent text-white text-xs font-display';
+            const period = e.target.dataset.period;
+            await this.loadHistoryForPeriod(period);
+          });
+        });
+      }
+
+      async loadHistoryForPeriod(period) {
+        const now = new Date();
+        const ranges = {
+          '1h': new Date(now - 3600 * 1000),
+          '24h': new Date(now - 24 * 3600 * 1000),
+          '7d': new Date(now - 7 * 24 * 3600 * 1000)
+        };
+
+        const from = ranges[period];
+        if (!from) return;
+
+        try {
+          const history = await this.api.getPriceHistory('WETH-USDT', {
+            from: from.toISOString(),
+            to: now.toISOString(),
+            page_size: 200
+          });
+
+          this.chart.updateData(history.data.reverse());
+          const stats = await this.api.getStats('WETH-USDT', period);
+          this.updateStats(stats);
+        } catch (err) {
+          console.error(`Failed to load ${period} history:`, err);
+        }
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      window.dashboard = new Dashboard();
+    });
+  </script>
+</body>
+</html>
