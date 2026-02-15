@@ -61,6 +61,30 @@ RPC_URL="your_rpc_url" cargo run -- watch --interval 30
 RPC_URL="your_rpc_url" cargo run -- watch --start-block 24456000
 ```
 
+**Graceful Shutdown:**
+- Press `Ctrl+C` to stop the watcher gracefully
+- State is automatically saved to `state.json` before exit
+- Resume tracking from last processed block on restart
+- No data loss on interruption
+
+**Output Example with Shutdown:**
+```
+📊 Block: 24461565 | Price: $2060.00 USDT | Change: ▲ +0.50%
+📊 Block: 24461566 | Price: $2061.00 USDT | Change: ▲ +0.05%
+^C
+🛑 Shutting down gracefully...
+✅ State saved to ./state.json
+📍 Last processed block: 24461566
+👋 Shutdown complete
+```
+
+**Restart resumes from saved state:**
+```
+RPC_URL="your_rpc_url" cargo run -- watch
+INFO Resuming from saved state at block: 24461566
+📊 Block: 24461567 | Price: $2062.00 USDT | Change: ▲ +0.05%
+```
+
 ## Alchemy API Tier Limits
 
 **Free Tier:**

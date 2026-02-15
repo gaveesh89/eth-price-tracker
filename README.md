@@ -9,6 +9,7 @@ A high-performance, type-safe Rust implementation for tracking ETH/USDT prices o
 - ✅ **Type-safe event decoding** using Alloy's `sol!` macro for compile-time verification
 - ✅ **Proper decimal handling** for WETH (18 decimals) and USDT (6 decimals)
 - ✅ **Incremental block tracking** - only fetches NEW events (not naive polling)
+- ✅ **Graceful shutdown** with state persistence - press Ctrl+C to save and resume later
 - ✅ **Colored CLI output** with timestamps, block numbers, and price change indicators
 - ✅ **Production error handling** with unified `TrackerError` enum
 - ✅ **Fully testable** with Anvil fork-based integration tests
@@ -90,6 +91,12 @@ cargo run --release -- watch --interval 15
 cargo run --release -- watch --start-block 19000000
 ```
 
+**Graceful Shutdown:**
+- Press `Ctrl+C` to stop monitoring gracefully
+- State automatically saved to `state.json`
+- Resume tracking from last block on restart
+- No data loss on interruption
+
 **Output example:**
 ```
 Starting real-time price monitoring (interval: 12s)...
@@ -97,6 +104,17 @@ Last processed block: None (starting fresh)
 
 [2024-01-15 14:23:45] Block 19000123 | $2,450.32 | 45.23 WETH | 110,789.45 USDT
 [2024-01-15 14:24:00] Block 19000124 | $2,451.80 (+0.06%) | 45.18 WETH | 110,801.23 USDT
+^C
+🛑 Shutting down gracefully...
+✅ State saved to ./state.json
+📍 Last processed block: 19000124
+👋 Shutdown complete
+```
+
+**Resume from saved state:**
+```bash
+cargo run --release -- watch
+# INFO Resuming from saved state at block: 19000124
 [2024-01-15 14:24:15] Block 19000125 | $2,449.15 (-0.11%) | 45.30 WETH | 110,785.67 USDT
 ```
 
@@ -105,6 +123,7 @@ Last processed block: None (starting fresh)
 - 🔴 **Red** - Price decreased
 - ⚪ **White** - Price unchanged
 - **Incremental tracking** - Only processes NEW blocks (no duplicate data)
+- **State persistence** - Survives Ctrl+C and restarts
 
 ### CLI Options
 
