@@ -1,6 +1,6 @@
 # Architecture: Production-Grade Uniswap V2 Event Indexer
 
-## 1. Module Structure (5-Layer Separation)
+## 1. Module Structure (6-Layer Separation)
 
 ```
 eth_uniswap_alloy/
@@ -22,18 +22,22 @@ eth_uniswap_alloy/
 │   │   └── pool_registry.rs    # Pool address registry (extensible)
 │   │
 │   ├── state/                  # Layer 3: State & Block Tracking
-│   │   ├── mod.rs              # State manager
+│   │   ├── mod.rs              # State manager with block hash persistence
 │   │   ├── cursor.rs           # Block cursor (last indexed block)
 │   │   ├── persistence.rs      # JSON/DB persistence layer
 │   │   └── cache.rs            # In-memory event cache
 │   │
-│   ├── pricing/                # Layer 4: Price Calculation
+│   ├── reorg/                  # Layer 4: Chain Reorganization Detection
+│   │   ├── mod.rs              # Reorg module exports
+│   │   └── detector.rs         # BlockRecord, ReorgDetector with binary search
+│   │
+│   ├── pricing/                # Layer 5: Price Calculation
 │   │   ├── mod.rs              # Pricing engine
 │   │   ├── calculator.rs       # Price math (reserves -> price)
 │   │   ├── decimals.rs         # Decimal handling (U256 -> float safely)
 │   │   └── types.rs            # Price types (PricePoint, Reserve)
 │   │
-│   ├── ui/                     # Layer 5: User Interface
+│   ├── ui/                     # Layer 6: User Interface
 │   │   ├── mod.rs              # Display layer
 │   │   ├── formatter.rs        # Pretty printing
 │   │   ├── progress.rs         # Progress indicators
@@ -48,6 +52,7 @@ eth_uniswap_alloy/
 │   │   ├── mod.rs
 │   │   ├── anvil_setup.rs      # Anvil fork helpers
 │   │   ├── full_flow.rs        # End-to-end test
+│   │   └── reorg_detection.rs  # Reorg handling tests
 │   │   └── watch_mode.rs       # Watch mode test
 │   └── unit/                   # Unit tests (per module)
 │       └── pricing_tests.rs

@@ -22,6 +22,7 @@ use crate::config::Config;
 use crate::error::{TrackerError, TrackerResult};
 use crate::events::{create_sync_filter_for_pair, Sync, UNISWAP_V2_WETH_USDT_PAIR};
 use crate::pricing::calculate_eth_price;
+use crate::reorg::{BlockRecord, ReorgDetector};
 use crate::rpc::{create_provider, get_latest_block};
 use crate::state::State;
 use alloy::primitives::{Log as PrimitiveLog, U256};
@@ -161,6 +162,21 @@ async fn run_watch_command(interval: u64, start_block: Option<u64>) -> TrackerRe
         });
     let mut last_price: Option<f64> = None;
 
+    // Initialize reorg detector
+    let mut reorg_detector = ReorgDetector::new();
+    
+    // If we have a previous block hash, initialize the detector with it
+    if let Some(hash) = state.last_block_hash() {
+        let record = BlockRecord::new(
+            state.get_last_block(),
+            hash,
+            alloy::primitives::B256::ZERO, // We don't have parent hash, but it won't be used for initial check
+            0, // Timestamp not needed for initial state
+        );
+        reorg_detector.add_block(record);
+        info!("Initialized reorg detector with block {} (hash: {})", state.get_last_block(), hash);
+    }
+
     // Determine starting block (use saved state if available)
     let latest_block = get_latest_block(&provider).await?;
     let mut last_processed_block = if state.get_last_block() > 0 {
@@ -170,6 +186,12 @@ async fn run_watch_command(interval: u64, start_block: Option<u64>) -> TrackerRe
         start_block.unwrap_or_else(|| latest_block.saturating_sub(100))
     };
     info!("Starting from block: {}", last_processed_block);
+
+    // Display reorg statistics if any
+    if state.reorg_count() > 0 {
+        info!("Total reorgs detected: {}", state.reorg_count());
+        println!("{} Total reorgs handled: {}", "📊".cyan(), state.reorg_count());
+    }
 
     // Setup graceful shutdown handler
     let shutdown = tokio::signal::ctrl_c();
@@ -203,6 +225,7 @@ async fn run_watch_command(interval: u64, start_block: Option<u64>) -> TrackerRe
                 match process_new_blocks(
                     &provider,
                     &mut state,
+                    &mut reorg_detector,
                     &mut last_processed_block,
                     &mut last_price,
                 )
@@ -232,16 +255,53 @@ async fn run_watch_command(interval: u64, start_block: Option<u64>) -> TrackerRe
 /// This function only fetches events from blocks that haven't been processed yet,
 /// implementing efficient incremental indexing rather than naive polling.
 /// Batches queries into 10-block chunks for Alchemy free tier compatibility.
+///
+/// ## Reorg Detection
+///
+/// Before processing new blocks, checks if a chain reorganization has occurred
+/// by verifying block hashes. If a reorg is detected:
+/// 1. Finds the fork point using binary search
+/// 2. Invalidates state from the fork point forward
+/// 3. Re-indexes blocks from fork point to current
 async fn process_new_blocks(
     provider: &crate::rpc::Provider,
     state: &mut State,
+    reorg_detector: &mut ReorgDetector,
     last_processed_block: &mut u64,
     last_price: &mut Option<f64>,
 ) -> TrackerResult<()> {
     // Get current latest block
     let current_latest = get_latest_block(provider).await?;
 
-    // Check if there are new blocks to process
+    // STEP 1: Check for reorgs before processing new blocks
+    if *last_processed_block > 0 && reorg_detector.last_block().is_some() {
+        debug!("Checking for potential reorg at block {}", current_latest);
+        
+        if let Some(fork_point) = reorg_detector.detect_reorg(provider, current_latest).await? {
+            warn!("⚠️  CHAIN REORGANIZATION DETECTED!");
+            println!();
+            println!("{}", "⚠️  CHAIN REORGANIZATION DETECTED!".red().bold());
+            println!("{} Fork point: block {}", "🔀".yellow(), fork_point);
+            println!("{} Reorg depth: {} blocks", "📏".yellow(), *last_processed_block - fork_point);
+            
+            // Increment reorg counter in state
+            state.increment_reorg_count();
+            
+            // Invalidate state from fork point
+            state.invalidate_from(fork_point);
+            *last_processed_block = fork_point;
+            
+            // Clear block hash from detector (will be repopulated during re-index)
+            *reorg_detector = ReorgDetector::new();
+            
+            println!("{} Re-indexing from block {}...", "🔄".cyan(), fork_point);
+            println!();
+            
+            info!("Reorg handled: rolling back to block {}", fork_point);
+        }
+    }
+
+    // STEP 2: Check if there are new blocks to process
     if current_latest <= *last_processed_block {
         debug!(
             "No new blocks (current: {}, last: {})",
@@ -309,8 +369,22 @@ async fn process_new_blocks(
         debug!("No Sync events in blocks {} to {}", from_block, to_block);
     }
 
-    // Update last processed block
+    // STEP 3: Update last processed block and store block hash for reorg detection
     *last_processed_block = to_block;
+    
+    // Fetch the block to get its hash (for reorg detection on next iteration)
+    let block = provider
+        .get_block_by_number(to_block.into(), alloy::rpc::types::BlockTransactionsKind::Hashes)
+        .await
+        .map_err(|e| TrackerError::rpc(format!("Failed to fetch block {} for reorg tracking: {}", to_block, e), None))?
+        .ok_or_else(|| TrackerError::state(format!("Block {} not found for reorg tracking", to_block), None))?;
+    
+    // Store block hash in state and reorg detector
+    state.set_block_hash(block.header.hash);
+    let block_record = BlockRecord::from_block(&block);
+    reorg_detector.add_block(block_record);
+    
+    debug!("Stored block {} hash {} for reorg detection", to_block, block.header.hash);
 
     Ok(())
 }

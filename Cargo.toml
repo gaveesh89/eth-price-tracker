@@ -66,3 +66,5 @@ chrono = { workspace = true }
 [dev-dependencies]
 # For Anvil testing
 alloy = { workspace = true, features = ["node-bindings"] }
+# For temporary file testing
+tempfile = "3.8"

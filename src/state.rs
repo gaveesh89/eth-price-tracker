@@ -48,8 +48,16 @@
 //! # Ok(())
 //! # }
 //! ```
+//!
+//! ## Reorg Safety
+//!
+//! State now includes block hash tracking for chain reorganization detection:
+//! - `last_block_hash`: Hash of the last processed block for chain continuity verification
+//! - `reorg_count`: Total number of reorgs detected and handled
+//!
+//! See the [`reorg`](crate::reorg) module for reorg detection implementation.
 
-use alloy::primitives::U256;
+use alloy::primitives::{B256, U256};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -74,11 +82,20 @@ const MAX_RESERVE_VALUE: u128 = 1_000_000_000_000_000_000_000_000_000_000; // 10
 /// - `weth_reserve`: Current WETH reserve (corresponds to reserve0 in Sync events)
 /// - `usdt_reserve`: Current USDT reserve (corresponds to reserve1 in Sync events)
 /// - `last_block`: Last block number where reserves were updated
+/// - `last_block_hash`: Block hash for reorg detection (chain continuity verification)
+/// - `reorg_count`: Total number of chain reorganizations detected
 ///
 /// ## Thread Safety
 ///
 /// This struct is not thread-safe by default. If using across threads,
 /// wrap in `Arc<Mutex<State>>` or similar synchronization primitive.
+///
+/// ## Reorg Detection
+///
+/// The `last_block_hash` field enables detection of chain reorganizations by
+/// verifying that each new block's parent hash matches the last known block hash.
+/// When a mismatch is detected, the [`reorg`](crate::reorg) module handles
+/// invalidation and re-indexing from the fork point.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct State {
     /// WETH reserve amount (token0 in the pair)
@@ -89,6 +106,14 @@ pub struct State {
 
     /// Last block number where state was updated
     last_block: u64,
+
+    /// Hash of the last processed block (for reorg detection)
+    #[serde(default)]
+    last_block_hash: Option<B256>,
+
+    /// Total number of chain reorganizations detected and handled
+    #[serde(default)]
+    reorg_count: u64,
 }
 
 impl State {
@@ -112,6 +137,8 @@ impl State {
             weth_reserve: U256::ZERO,
             usdt_reserve: U256::ZERO,
             last_block: 0,
+            last_block_hash: None,
+            reorg_count: 0,
         }
     }
 
@@ -289,6 +316,112 @@ impl State {
     #[must_use]
     pub fn is_initialized(&self) -> bool {
         !self.weth_reserve.is_zero() && !self.usdt_reserve.is_zero()
+    }
+
+    /// Get the last processed block hash.
+    ///
+    /// Returns the block hash of the most recent successfully processed block,
+    /// or `None` if no blocks have been processed yet.
+    ///
+    /// This is used for chain reorganization detection by verifying that each
+    /// new block's parent hash matches this value.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use eth_uniswap_alloy::state::State;
+    ///
+    /// let state = State::new();
+    /// assert!(state.last_block_hash().is_none());
+    /// ```
+    #[must_use]
+    pub const fn last_block_hash(&self) -> Option<B256> {
+        self.last_block_hash
+    }
+
+    /// Set the last processed block hash.
+    ///
+    /// Updates the block hash stored for reorg detection. This should be called
+    /// after successfully processing a block's events.
+    ///
+    /// # Arguments
+    ///
+    /// * `hash` - The block hash to store
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use eth_uniswap_alloy::state::State;
+    /// use alloy::primitives::b256;
+    ///
+    /// let mut state = State::new();
+    /// let hash = b256!("0x1234567890123456789012345678901234567890123456789012345678901234");
+    /// state.set_block_hash(hash);
+    /// assert_eq!(state.last_block_hash(), Some(hash));
+    /// ```
+    pub fn set_block_hash(&mut self, hash: B256) {
+        self.last_block_hash = Some(hash);
+        debug!("Block hash updated: {}", hash);
+    }
+
+    /// Get the total number of detected chain reorganizations.
+    ///
+    /// Returns the count of reorgs that have been detected and handled
+    /// during this indexer's lifetime (count persists across restarts).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use eth_uniswap_alloy::state::State;
+    ///
+    /// let state = State::new();
+    /// assert_eq!(state.reorg_count(), 0);
+    /// ```
+    #[must_use]
+    pub const fn reorg_count(&self) -> u64 {
+        self.reorg_count
+    }
+
+    /// Increment the reorg counter.
+    ///
+    /// Called when a chain reorganization is detected to track how many
+    /// reorgs have occurred over the indexer's lifetime.
+    pub fn increment_reorg_count(&mut self) {
+        self.reorg_count += 1;
+        warn!("Reorg count incremented to {}", self.reorg_count);
+    }
+
+    /// Invalidate state from a given block number.
+    ///
+    /// Used during reorg handling to rollback state to a known-good fork point.
+    /// Clears the block hash and resets the last block number.
+    ///
+    /// # Arguments
+    ///
+    /// * `fork_point` - The last valid block number (state will be reset to this point)
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use eth_uniswap_alloy::state::State;
+    ///
+    /// let mut state = State::new();
+    /// // ... update state to block 19000100 ...
+    /// 
+    /// // Reorg detected, rollback to fork point
+    /// state.invalidate_from(19000050);
+    /// assert_eq!(state.get_last_block(), 19000050);
+    /// assert!(state.last_block_hash().is_none());
+    /// ```
+    pub fn invalidate_from(&mut self, fork_point: u64) {
+        info!(
+            "Invalidating state from block {} (was at block {})",
+            fork_point, self.last_block
+        );
+        self.last_block = fork_point;
+        self.last_block_hash = None;
+        // Note: We keep the reserves since they represent the state at fork_point
+        // The caller should re-fetch events from fork_point to rebuild accurate state
     }
 
     /// Save state to a JSON file.

@@ -132,5 +132,6 @@ pub mod config;
 pub mod error;
 pub mod events;
 pub mod pricing;
+pub mod reorg;
 pub mod rpc;
 pub mod state;

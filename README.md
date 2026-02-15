@@ -9,6 +9,7 @@ A high-performance, type-safe Rust implementation for tracking ETH/USDT prices o
 - ✅ **Type-safe event decoding** using Alloy's `sol!` macro for compile-time verification
 - ✅ **Proper decimal handling** for WETH (18 decimals) and USDT (6 decimals)
 - ✅ **Incremental block tracking** - only fetches NEW events (not naive polling)
+- ✅ **Chain reorganization handling** - automatic detection and recovery from reorgs
 - ✅ **Graceful shutdown** with state persistence - press Ctrl+C to save and resume later
 - ✅ **Colored CLI output** with timestamps, block numbers, and price change indicators
 - ✅ **Production error handling** with unified `TrackerError` enum
@@ -18,15 +19,17 @@ A high-performance, type-safe Rust implementation for tracking ETH/USDT prices o
 
 ## Architecture
 
-5-layer design for modularity and maintainability:
+6-layer design for modularity and maintainability:
 
 1. **Config Layer** (`src/config.rs`) - Environment variable loading with validation
 2. **RPC Layer** (`src/rpc.rs`) - Ethereum provider management with connection checks
 3. **Events Layer** (`src/events.rs`) - Type-safe event decoding with `sol!` macro
-4. **State Layer** (`src/state.rs`) - Reserve tracking with reorg detection
-5. **Pricing Layer** (`src/pricing.rs`) - ETH/USDT price calculation with decimal adjustment
+4. **State Layer** (`src/state.rs`) - Reserve tracking with block hash persistence
+5. **Reorg Layer** (`src/reorg/`) - Chain reorganization detection and recovery
+6. **Pricing Layer** (`src/pricing.rs`) - ETH/USDT price calculation with decimal adjustment
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed design documentation.
+See [REORG_HANDLING.md](./REORG_HANDLING.md) for reorg detection details.
 
 ## Quick Start
 
