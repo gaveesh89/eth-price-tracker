@@ -9,6 +9,8 @@ Cargo.lock
 # Runtime state files
 state.json
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 
 # IDE files
