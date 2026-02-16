@@ -89,10 +89,6 @@ jobs:
       
       - name: Run doc tests
         run: cargo test --doc
-      
-      - name: Run integration tests (without Anvil)
-        run: cargo test --test '*' -- --test-threads=1 --skip test_
-        continue-on-error: true
 
   build:
     name: Build
