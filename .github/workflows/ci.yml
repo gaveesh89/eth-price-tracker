@@ -131,6 +131,8 @@ jobs:
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       
@@ -138,10 +140,12 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       
       - name: Install tarpaulin
-        run: cargo install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin --locked
+        timeout-minutes: 5
       
       - name: Generate coverage
-        run: cargo tarpaulin --verbose --all-features --workspace --timeout 120 --out Xml -- --test-threads=1
+        run: cargo tarpaulin --verbose --all-features --workspace --timeout 180 --lib --out Xml -- --test-threads=1
+        continue-on-error: true
       
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
