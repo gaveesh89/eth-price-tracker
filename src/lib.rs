@@ -127,13 +127,13 @@
 #![forbid(unsafe_code)]
 
 // Module declarations will go here as we build them
+pub mod api;
+pub mod app_state;
 pub mod cli;
 pub mod config;
 pub mod db;
 pub mod error;
 pub mod events;
-pub mod api;
-pub mod app_state;
 pub mod observability;
 pub mod pricing;
 pub mod reorg;

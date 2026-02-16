@@ -18,9 +18,9 @@
 //! eth-uniswap-alloy watch
 //! ```
 
-use crate::config::Config;
 use crate::api::server;
 use crate::app_state::AppState;
+use crate::config::Config;
 use crate::db::create_pool;
 use crate::db::repository::Repository;
 use crate::error::{TrackerError, TrackerResult};
@@ -178,32 +178,38 @@ async fn run_watch_command(interval: u64, start_block: Option<u64>) -> TrackerRe
     repository.ensure_default_pool().await?;
 
     // Initialize state tracker - load from file if exists
-    let mut state = State::load(config.state_file())
-        .unwrap_or_else(|e| {
-            warn!("Failed to load state: {}, starting fresh", e);
-            State::new()
-        });
+    let mut state = State::load(config.state_file()).unwrap_or_else(|e| {
+        warn!("Failed to load state: {}, starting fresh", e);
+        State::new()
+    });
     let mut last_price: Option<f64> = None;
 
     // Initialize reorg detector
     let mut reorg_detector = ReorgDetector::new();
-    
+
     // If we have a previous block hash, initialize the detector with it
     if let Some(hash) = state.last_block_hash() {
         let record = BlockRecord::new(
             state.get_last_block(),
             hash,
             alloy::primitives::B256::ZERO, // We don't have parent hash, but it won't be used for initial check
-            0, // Timestamp not needed for initial state
+            0,                             // Timestamp not needed for initial state
         );
         reorg_detector.add_block(record);
-        info!("Initialized reorg detector with block {} (hash: {})", state.get_last_block(), hash);
+        info!(
+            "Initialized reorg detector with block {} (hash: {})",
+            state.get_last_block(),
+            hash
+        );
     }
 
     // Determine starting block (use saved state if available)
     let latest_block = get_latest_block(&provider).await?;
     let mut last_processed_block = if state.get_last_block() > 0 {
-        info!("Resuming from saved state at block: {}", state.get_last_block());
+        info!(
+            "Resuming from saved state at block: {}",
+            state.get_last_block()
+        );
         state.get_last_block()
     } else {
         start_block.unwrap_or_else(|| latest_block.saturating_sub(100))
@@ -213,7 +219,11 @@ async fn run_watch_command(interval: u64, start_block: Option<u64>) -> TrackerRe
     // Display reorg statistics if any
     if state.reorg_count() > 0 {
         info!("Total reorgs detected: {}", state.reorg_count());
-        println!("{} Total reorgs handled: {}", "📊".cyan(), state.reorg_count());
+        println!(
+            "{} Total reorgs handled: {}",
+            "📊".cyan(),
+            state.reorg_count()
+        );
     }
 
     // Setup graceful shutdown handler
@@ -228,7 +238,7 @@ async fn run_watch_command(interval: u64, start_block: Option<u64>) -> TrackerRe
                 info!("Shutdown signal received, cleaning up...");
                 println!();
                 println!("{}", "🛑 Shutting down gracefully...".yellow().bold());
-                
+
                 // Save final state
                 if let Err(e) = state.save(config.state_file()) {
                     error!("Failed to save state on shutdown: {}", e);
@@ -237,12 +247,12 @@ async fn run_watch_command(interval: u64, start_block: Option<u64>) -> TrackerRe
                     println!("{} State saved to {}", "✅".green(), config.state_file().display());
                     println!("{} Last processed block: {}", "📍".cyan(), last_processed_block);
                 }
-                
+
                 println!("{}", "👋 Shutdown complete".green().bold());
                 info!("Shutdown complete");
                 break;
             }
-            
+
             // Process blocks
             _ = tokio::time::sleep(Duration::from_secs(0)) => {
                 match process_new_blocks(
@@ -321,27 +331,34 @@ async fn process_new_blocks(
     // STEP 1: Check for reorgs before processing new blocks
     if *last_processed_block > 0 && reorg_detector.last_block().is_some() {
         debug!("Checking for potential reorg at block {}", current_latest);
-        
-        if let Some(fork_point) = reorg_detector.detect_reorg(provider, current_latest).await? {
+
+        if let Some(fork_point) = reorg_detector
+            .detect_reorg(provider, current_latest)
+            .await?
+        {
             warn!("⚠️  CHAIN REORGANIZATION DETECTED!");
             println!();
             println!("{}", "⚠️  CHAIN REORGANIZATION DETECTED!".red().bold());
             println!("{} Fork point: block {}", "🔀".yellow(), fork_point);
-            println!("{} Reorg depth: {} blocks", "📏".yellow(), *last_processed_block - fork_point);
-            
+            println!(
+                "{} Reorg depth: {} blocks",
+                "📏".yellow(),
+                *last_processed_block - fork_point
+            );
+
             // Increment reorg counter in state
             state.increment_reorg_count();
-            
+
             // Invalidate state from fork point
             state.invalidate_from(fork_point);
             *last_processed_block = fork_point;
-            
+
             // Clear block hash from detector (will be repopulated during re-index)
             *reorg_detector = ReorgDetector::new();
-            
+
             println!("{} Re-indexing from block {}...", "🔄".cyan(), fork_point);
             println!();
-            
+
             info!("Reorg handled: rolling back to block {}", fork_point);
         }
     }
@@ -381,7 +398,9 @@ async fn process_new_blocks(
             let pool = repository
                 .get_pool_by_name("WETH/USDT")
                 .await?
-                .ok_or_else(|| TrackerError::state("WETH/USDT pool not found in database".to_string(), None))?;
+                .ok_or_else(|| {
+                    TrackerError::state("WETH/USDT pool not found in database".to_string(), None)
+                })?;
 
             // Process each event
             for log in logs {
@@ -442,7 +461,11 @@ async fn process_new_blocks(
                     .await?;
 
                 // Update indexer state
-                let current_total = repository.get_state(pool.id).await?.map(|s| s.total_events_processed).unwrap_or(0) as u64;
+                let current_total = repository
+                    .get_state(pool.id)
+                    .await?
+                    .map(|s| s.total_events_processed)
+                    .unwrap_or(0) as u64;
                 repository
                     .update_state(pool.id, block_number, block_hash, 0, current_total + 1)
                     .await?;
@@ -468,27 +491,49 @@ async fn process_new_blocks(
     }
 
     if total_events > 0 {
-        info!("Found {} Sync events in range {} to {}", total_events, from_block, to_block);
+        info!(
+            "Found {} Sync events in range {} to {}",
+            total_events, from_block, to_block
+        );
     } else {
         debug!("No Sync events in blocks {} to {}", from_block, to_block);
     }
 
     // STEP 3: Update last processed block and store block hash for reorg detection
     *last_processed_block = to_block;
-    
+
     // Fetch the block to get its hash (for reorg detection on next iteration)
     let block = provider
-        .get_block_by_number(to_block.into(), alloy::rpc::types::BlockTransactionsKind::Hashes)
+        .get_block_by_number(
+            to_block.into(),
+            alloy::rpc::types::BlockTransactionsKind::Hashes,
+        )
         .await
-        .map_err(|e| TrackerError::rpc(format!("Failed to fetch block {} for reorg tracking: {}", to_block, e), None))?
-        .ok_or_else(|| TrackerError::state(format!("Block {} not found for reorg tracking", to_block), None))?;
-    
+        .map_err(|e| {
+            TrackerError::rpc(
+                format!(
+                    "Failed to fetch block {} for reorg tracking: {}",
+                    to_block, e
+                ),
+                None,
+            )
+        })?
+        .ok_or_else(|| {
+            TrackerError::state(
+                format!("Block {} not found for reorg tracking", to_block),
+                None,
+            )
+        })?;
+
     // Store block hash in state and reorg detector
     state.set_block_hash(block.header.hash);
     let block_record = BlockRecord::from_block(&block);
     reorg_detector.add_block(block_record);
-    
-    debug!("Stored block {} hash {} for reorg detection", to_block, block.header.hash);
+
+    debug!(
+        "Stored block {} hash {} for reorg detection",
+        to_block, block.header.hash
+    );
 
     Ok(())
 }

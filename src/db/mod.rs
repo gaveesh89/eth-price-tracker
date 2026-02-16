@@ -13,7 +13,7 @@
 //! - Migration system for schema versioning
 
 use sqlx::{
-    sqlite::{SqliteConnectOptions, SqlitePoolOptions, SqliteSynchronous, SqliteJournalMode},
+    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
     SqlitePool,
 };
 use std::str::FromStr;
@@ -135,12 +135,18 @@ pub async fn verify_database(pool: &SqlitePool) -> Result<(), TrackerError> {
     .fetch_all(pool)
     .await
     .map_err(|e| {
-        TrackerError::database("Failed to verify database schema".to_string(), Some(Box::new(e)))
+        TrackerError::database(
+            "Failed to verify database schema".to_string(),
+            Some(Box::new(e)),
+        )
     })?;
 
     if rows.len() < 4 {
         return Err(TrackerError::database(
-            format!("Database schema incomplete. Expected 4 tables, found {}", rows.len()),
+            format!(
+                "Database schema incomplete. Expected 4 tables, found {}",
+                rows.len()
+            ),
             None,
         ));
     }
@@ -165,13 +171,18 @@ mod tests {
             .expect("Failed to run migrations");
 
         // Verify tables exist
-        let result: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM sqlite_master WHERE type='table'")
-            .fetch_one(&pool)
-            .await
-            .expect("Failed to query tables");
+        let result: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM sqlite_master WHERE type='table'")
+                .fetch_one(&pool)
+                .await
+                .expect("Failed to query tables");
 
         // Should have 4 tables + 1 migration history table
-        assert!(result.0 >= 4, "Expected at least 4 tables, got {}", result.0);
+        assert!(
+            result.0 >= 4,
+            "Expected at least 4 tables, got {}",
+            result.0
+        );
     }
 
     #[tokio::test]
@@ -188,7 +199,10 @@ mod tests {
             .expect("Failed to query journal mode");
 
         // For in-memory databases, expect 'memory' journal mode
-        assert_eq!(result.0, "memory", "Memory mode expected for :memory: database");
+        assert_eq!(
+            result.0, "memory",
+            "Memory mode expected for :memory: database"
+        );
     }
 
     #[tokio::test]

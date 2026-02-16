@@ -210,9 +210,7 @@ impl ReorgDetector {
             self.reorg_count += 1;
 
             // Binary search to find the exact fork point
-            let fork_point = self
-                .find_fork_point(provider, 0, last_known.number)
-                .await?;
+            let fork_point = self.find_fork_point(provider, 0, last_known.number).await?;
 
             info!(
                 "Fork point found at block {}. Reorg depth: {} blocks",
@@ -280,7 +278,12 @@ impl ReorgDetector {
         let block = provider
             .get_block_by_number(block_number.into(), BlockTransactionsKind::Hashes)
             .await
-            .map_err(|e| TrackerError::rpc(format!("Failed to fetch block {}: {}", block_number, e), None))?
+            .map_err(|e| {
+                TrackerError::rpc(
+                    format!("Failed to fetch block {}: {}", block_number, e),
+                    None,
+                )
+            })?
             .ok_or_else(|| {
                 TrackerError::state(format!("Block {} not found", block_number), None)
             })?;

@@ -1,11 +1,7 @@
 //! Axum server setup and routing.
 
-use axum::{
-    middleware,
-    routing::get,
-    Router,
-};
 use axum::http::HeaderValue;
+use axum::{middleware, routing::get, Router};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -20,8 +16,8 @@ use tracing::info;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
-use crate::api::{docs::ApiDoc, handlers, middleware as api_middleware};
 use crate::api::models::{PriceStreamMessage, ReservesInfo};
+use crate::api::{docs::ApiDoc, handlers, middleware as api_middleware};
 use crate::app_state::AppState;
 
 /// Run the Axum API server.
@@ -39,8 +35,14 @@ pub async fn run_server(
     let api_routes = Router::new()
         .route("/health", get(handlers::health::health_check))
         .route("/pools", get(handlers::pools::list_pools))
-        .route("/price/current/:pool", get(handlers::price::get_current_price))
-        .route("/price/history/:pool", get(handlers::price::get_price_history))
+        .route(
+            "/price/current/:pool",
+            get(handlers::price::get_current_price),
+        )
+        .route(
+            "/price/history/:pool",
+            get(handlers::price::get_price_history),
+        )
         .route("/stats/:pool", get(handlers::stats::get_stats))
         .route("/events/:pool", get(handlers::events::get_recent_events))
         .route("/stream/:pool", get(handlers::stream::websocket_handler));

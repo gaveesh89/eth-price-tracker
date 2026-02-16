@@ -404,12 +404,12 @@ impl IndexerState {
 
     /// Parses the block hash back to FixedBytes<32>.
     pub fn block_hash(&self) -> Result<FixedBytes<32>, crate::error::TrackerError> {
-        self.last_block_hash.parse().map_err(|e| {
-            crate::error::TrackerError::DecodingError {
+        self.last_block_hash
+            .parse()
+            .map_err(|e| crate::error::TrackerError::DecodingError {
                 message: format!("Failed to parse block hash: {}", self.last_block_hash),
                 source: Some(Box::new(e)),
-            }
-        })
+            })
     }
 }
 

@@ -1,11 +1,6 @@
 //! Rate limiting middleware.
 
-use axum::{
-    extract::Request,
-    http::StatusCode,
-    middleware::Next,
-    response::Response,
-};
+use axum::{extract::Request, http::StatusCode, middleware::Next, response::Response};
 use governor::{
     clock::DefaultClock,
     state::{InMemoryState, NotKeyed},

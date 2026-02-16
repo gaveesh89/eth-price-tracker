@@ -89,7 +89,8 @@ pub async fn get_stats(
         average: stats.avg_price,
         change_percent,
         volume_events: stats.total_events as u64,
-        first_timestamp: DateTime::from_timestamp(stats.first_timestamp, 0).unwrap_or_else(Utc::now),
+        first_timestamp: DateTime::from_timestamp(stats.first_timestamp, 0)
+            .unwrap_or_else(Utc::now),
         last_timestamp: DateTime::from_timestamp(stats.last_timestamp, 0).unwrap_or_else(Utc::now),
     };
 

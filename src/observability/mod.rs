@@ -46,16 +46,10 @@
 //! LOG_FILE=./logs/indexer.log cargo run
 //! ```
 
-use std::path::{Path, PathBuf};
 use std::ffi::OsStr;
+use std::path::{Path, PathBuf};
 use tracing::info;
-use tracing_subscriber::{
-    fmt,
-    layer::SubscriberExt,
-    util::SubscriberInitExt,
-    EnvFilter,
-    Layer,
-};
+use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer};
 
 /// Initialize the tracing subscriber with configurable output formats.
 ///
@@ -66,7 +60,7 @@ use tracing_subscriber::{
 ///
 /// # Arguments
 ///
-/// * `log_level` - Optional log level override (e.g., "debug", "info"). 
+/// * `log_level` - Optional log level override (e.g., "debug", "info").
 ///                 Falls back to RUST_LOG environment variable.
 /// * `log_file` - Optional file path for log output. Enables daily log rotation.
 /// * `json_output` - If true, outputs JSON format suitable for log aggregation.

@@ -119,11 +119,7 @@ impl HybridProviderManager {
     /// Returns error if:
     /// - HTTP provider initialization fails (always fatal)
     /// - WebSocket mode enabled but connection fails
-    pub async fn new(
-        http_url: String,
-        ws_url: Option<String>,
-        mode: ProviderMode,
-    ) -> Result<Self> {
+    pub async fn new(http_url: String, ws_url: Option<String>, mode: ProviderMode) -> Result<Self> {
         // Always create HTTP provider (required for historical data)
         info!("Initializing HTTP provider: {}", http_url);
         let http_provider = http::create_provider(&http_url)
@@ -341,7 +337,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_http_only_mode() {
-        let http_url = std::env::var("RPC_URL").unwrap_or_else(|_| "http://localhost:8545".to_string());
+        let http_url =
+            std::env::var("RPC_URL").unwrap_or_else(|_| "http://localhost:8545".to_string());
 
         let manager = HybridProviderManager::new(http_url, None, ProviderMode::Http)
             .await
@@ -357,13 +354,9 @@ mod tests {
         let http_url = std::env::var("RPC_URL").expect("RPC_URL not set");
         let ws_url = std::env::var("RPC_WS_URL").expect("RPC_WS_URL not set");
 
-        let manager = HybridProviderManager::new(
-            http_url,
-            Some(ws_url),
-            ProviderMode::WebSocket,
-        )
-        .await
-        .expect("WebSocket mode should initialize");
+        let manager = HybridProviderManager::new(http_url, Some(ws_url), ProviderMode::WebSocket)
+            .await
+            .expect("WebSocket mode should initialize");
 
         assert!(manager.is_ws_available());
     }
@@ -384,7 +377,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_http_provider_always_available() {
-        let http_url = std::env::var("RPC_URL").unwrap_or_else(|_| "http://localhost:8545".to_string());
+        let http_url =
+            std::env::var("RPC_URL").unwrap_or_else(|_| "http://localhost:8545".to_string());
 
         let manager = HybridProviderManager::new(http_url, None, ProviderMode::Http)
             .await

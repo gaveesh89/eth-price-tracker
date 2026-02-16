@@ -24,7 +24,7 @@ impl AppState {
     /// Create a new AppState instance.
     pub fn new(repository: Repository) -> Self {
         let (tx, _) = broadcast::channel(100);
-        
+
         Self {
             repository: Arc::new(repository),
             ws_connected: Arc::new(AtomicBool::new(false)),

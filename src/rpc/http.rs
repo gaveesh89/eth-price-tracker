@@ -20,7 +20,7 @@
 use crate::error::{TrackerError, TrackerResult};
 use alloy::providers::{Provider as AlloProvider, ProviderBuilder, RootProvider};
 use alloy::transports::http::{Client, Http};
-use tracing::{debug, info, warn, instrument};
+use tracing::{debug, info, instrument, warn};
 
 /// Type alias for the HTTP provider with recommended fillers.
 ///
@@ -66,7 +66,7 @@ pub type Provider = RootProvider<Http<Client>>;
 #[instrument(skip(rpc_url), fields(rpc_host = tracing::field::Empty))]
 pub async fn create_provider(rpc_url: &str) -> TrackerResult<Provider> {
     info!("Initializing RPC provider");
-    
+
     // Extract host for logging (without sensitive API key)
     let host = rpc_url.split("/v2/").next().unwrap_or("unknown");
     tracing::Span::current().record("rpc_host", host);
@@ -141,7 +141,7 @@ pub async fn get_latest_block(provider: &Provider) -> TrackerResult<u64> {
         .get_block_number()
         .await
         .map_err(|e| TrackerError::rpc("Failed to fetch latest block number", Some(Box::new(e))))?;
-    
+
     let duration = start.elapsed();
     tracing::Span::current().record("block", block_number);
     tracing::Span::current().record("duration_ms", duration.as_millis() as u64);

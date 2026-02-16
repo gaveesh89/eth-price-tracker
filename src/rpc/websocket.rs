@@ -35,7 +35,7 @@ use alloy::{
 };
 use eyre::Result;
 use futures_util::stream::StreamExt;
-use tracing::{debug, error, info, warn, instrument};
+use tracing::{debug, error, info, instrument, warn};
 
 /// WebSocket provider for real-time blockchain subscriptions.
 ///
@@ -98,11 +98,11 @@ impl WebSocketProvider {
         // Extract host for logging (without API key)
         let host = ws_url.split("/v2/").next().unwrap_or("unknown");
         tracing::Span::current().record("ws_host", host);
-        
+
         info!(ws_host = host, "Connecting to WebSocket");
 
         let start = std::time::Instant::now();
-        
+
         // Build provider with WebSocket connection
         let provider = ProviderBuilder::new()
             .on_builtin(&ws_url)
@@ -114,7 +114,7 @@ impl WebSocketProvider {
 
         let duration = start.elapsed();
         tracing::Span::current().record("duration_ms", duration.as_millis() as u64);
-        
+
         info!(
             ws_host = host,
             duration_ms = duration.as_millis(),
@@ -172,19 +172,13 @@ impl WebSocketProvider {
     ///
     /// Returns error if subscription fails (e.g., disconnected).
     #[instrument(skip(self))]
-    pub async fn subscribe_blocks(
-        &self,
-    ) -> Result<impl StreamExt<Item = Header> + use<'_>> {
+    pub async fn subscribe_blocks(&self) -> Result<impl StreamExt<Item = Header> + use<'_>> {
         info!("Subscribing to new blocks via WebSocket");
 
-        let sub = self
-            .provider
-            .subscribe_blocks()
-            .await
-            .map_err(|e| {
-                error!(error = %e, "Block subscription failed");
-                eyre::eyre!("Block subscription failed: {}", e)
-            })?;
+        let sub = self.provider.subscribe_blocks().await.map_err(|e| {
+            error!(error = %e, "Block subscription failed");
+            eyre::eyre!("Block subscription failed: {}", e)
+        })?;
 
         let stream = sub.into_stream();
 
@@ -367,7 +361,10 @@ impl ReconnectingWebSocket {
                 Err(e) => {
                     attempt += 1;
                     if attempt >= self.max_reconnect_attempts {
-                        error!("Max reconnection attempts ({}) reached", self.max_reconnect_attempts);
+                        error!(
+                            "Max reconnection attempts ({}) reached",
+                            self.max_reconnect_attempts
+                        );
                         return Err(eyre::eyre!(
                             "Failed to connect after {} attempts: {}",
                             attempt,
@@ -390,8 +387,7 @@ impl ReconnectingWebSocket {
 
                     // Add jitter (±25%) to prevent thundering herd
                     let jitter_factor = 0.25 * (rand::random::<f64>() - 0.5);
-                    let jitter_ms =
-                        (delay.as_millis() as f64 * jitter_factor).round() as i64;
+                    let jitter_ms = (delay.as_millis() as f64 * jitter_factor).round() as i64;
                     delay = if jitter_ms >= 0 {
                         delay + std::time::Duration::from_millis(jitter_ms as u64)
                     } else {
@@ -464,16 +460,9 @@ mod tests {
             .expect("Failed to subscribe to blocks");
 
         // Wait for first block with timeout
-        let block = tokio::time::timeout(
-            std::time::Duration::from_secs(30),
-            stream.next(),
-        )
-        .await;
+        let block = tokio::time::timeout(std::time::Duration::from_secs(30), stream.next()).await;
 
-        assert!(
-            block.is_ok(),
-            "Should receive block within 30 seconds"
-        );
+        assert!(block.is_ok(), "Should receive block within 30 seconds");
         assert!(block.unwrap().is_some(), "Block should not be None");
     }
 
@@ -486,12 +475,8 @@ mod tests {
 
     #[test]
     fn test_reconnecting_websocket_custom_settings() {
-        let reconnecting = ReconnectingWebSocket::with_settings(
-            "wss://test.com".to_string(),
-            5,
-            2,
-            30,
-        );
+        let reconnecting =
+            ReconnectingWebSocket::with_settings("wss://test.com".to_string(), 5, 2, 30);
         assert_eq!(reconnecting.max_reconnect_attempts, 5);
         assert_eq!(reconnecting.initial_delay_secs, 2);
         assert_eq!(reconnecting.max_delay_secs, 30);
@@ -507,9 +492,6 @@ mod tests {
         );
 
         let result = reconnecting.connect().await;
-        assert!(
-            result.is_err(),
-            "Should fail to connect to invalid URL"
-        );
+        assert!(result.is_err(), "Should fail to connect to invalid URL");
     }
 }

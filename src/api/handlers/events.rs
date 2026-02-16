@@ -44,7 +44,9 @@ pub async fn get_recent_events(
     let pool_name_normalized = pool_name.replace('-', "/");
 
     if query.limit == 0 || query.limit > 1000 {
-        return Err(ApiError::BadRequest("limit must be between 1 and 1000".to_string()));
+        return Err(ApiError::BadRequest(
+            "limit must be between 1 and 1000".to_string(),
+        ));
     }
 
     let pool = state

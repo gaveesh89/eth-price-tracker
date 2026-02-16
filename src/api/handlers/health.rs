@@ -36,7 +36,10 @@ pub async fn health_check(State(state): State<AppState>) -> Result<Json<HealthRe
         Err(_) => HealthStatus::Unhealthy,
     };
 
-    let ws_status = if state.ws_connected.load(std::sync::atomic::Ordering::Relaxed) {
+    let ws_status = if state
+        .ws_connected
+        .load(std::sync::atomic::Ordering::Relaxed)
+    {
         HealthStatus::Healthy
     } else {
         HealthStatus::Degraded

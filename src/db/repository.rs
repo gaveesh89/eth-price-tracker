@@ -8,15 +8,8 @@ use sqlx::SqlitePool;
 use tracing::{debug, info, instrument};
 
 use super::models::{
-    IndexerState,
-    PoolRecord,
-    PoolRow,
-    PricePointRecord,
-    PricePointRow,
-    PriceStats,
-    StatsRow,
-    SyncEventRecord,
-    SyncEventRow,
+    IndexerState, PoolRecord, PoolRow, PricePointRecord, PricePointRow, PriceStats, StatsRow,
+    SyncEventRecord, SyncEventRow,
 };
 use crate::error::TrackerError;
 
@@ -85,7 +78,10 @@ impl Repository {
             .fetch_optional(&self.pool)
             .await
             .map_err(|e| {
-                TrackerError::database("Failed to query existing pool".to_string(), Some(Box::new(e)))
+                TrackerError::database(
+                    "Failed to query existing pool".to_string(),
+                    Some(Box::new(e)),
+                )
             })?;
 
         if let Some((pool_id,)) = existing {
@@ -132,7 +128,10 @@ impl Repository {
     }
 
     /// Retrieves a pool by its address.
-    pub async fn get_pool_by_address(&self, address: Address) -> Result<Option<PoolRecord>, TrackerError> {
+    pub async fn get_pool_by_address(
+        &self,
+        address: Address,
+    ) -> Result<Option<PoolRecord>, TrackerError> {
         let address_str = format!("{:?}", address);
 
         let pool = sqlx::query_as::<_, PoolRecord>("SELECT * FROM pools WHERE address = ?")
@@ -140,7 +139,10 @@ impl Repository {
             .fetch_optional(&self.pool)
             .await
             .map_err(|e| {
-                TrackerError::database("Failed to query pool by address".to_string(), Some(Box::new(e)))
+                TrackerError::database(
+                    "Failed to query pool by address".to_string(),
+                    Some(Box::new(e)),
+                )
             })?;
 
         Ok(pool)
@@ -253,7 +255,7 @@ impl Repository {
         info!(count = count, "Starting batch insert of sync events");
 
         let start = std::time::Instant::now();
-        
+
         let mut tx = self.pool.begin().await.map_err(|e| {
             TrackerError::database("Failed to start transaction".to_string(), Some(Box::new(e)))
         })?;
@@ -288,14 +290,20 @@ impl Repository {
             .await
             .map_err(|e| {
                 TrackerError::database(
-                    format!("Failed to insert sync event at block {}", event.block_number),
+                    format!(
+                        "Failed to insert sync event at block {}",
+                        event.block_number
+                    ),
                     Some(Box::new(e)),
                 )
             })?;
         }
 
         tx.commit().await.map_err(|e| {
-            TrackerError::database("Failed to commit transaction".to_string(), Some(Box::new(e)))
+            TrackerError::database(
+                "Failed to commit transaction".to_string(),
+                Some(Box::new(e)),
+            )
         })?;
 
         let duration = start.elapsed();
@@ -373,7 +381,10 @@ impl Repository {
         .execute(&self.pool)
         .await
         .map_err(|e| {
-            TrackerError::database("Failed to insert price point".to_string(), Some(Box::new(e)))
+            TrackerError::database(
+                "Failed to insert price point".to_string(),
+                Some(Box::new(e)),
+            )
         })?;
 
         Ok(result.last_insert_rowid())
@@ -426,14 +437,20 @@ impl Repository {
             .await
             .map_err(|e| {
                 TrackerError::database(
-                    format!("Failed to insert price point at block {}", price.block_number),
+                    format!(
+                        "Failed to insert price point at block {}",
+                        price.block_number
+                    ),
                     Some(Box::new(e)),
                 )
             })?;
         }
 
         tx.commit().await.map_err(|e| {
-            TrackerError::database("Failed to commit transaction".to_string(), Some(Box::new(e)))
+            TrackerError::database(
+                "Failed to commit transaction".to_string(),
+                Some(Box::new(e)),
+            )
         })?;
 
         Ok(())
@@ -474,7 +491,10 @@ impl Repository {
         .fetch_all(&self.pool)
         .await
         .map_err(|e| {
-            TrackerError::database("Failed to query recent prices".to_string(), Some(Box::new(e)))
+            TrackerError::database(
+                "Failed to query recent prices".to_string(),
+                Some(Box::new(e)),
+            )
         })?;
 
         Ok(prices)
@@ -523,7 +543,10 @@ impl Repository {
         .fetch_all(&self.pool)
         .await
         .map_err(|e| {
-            TrackerError::database("Failed to query price history".to_string(), Some(Box::new(e)))
+            TrackerError::database(
+                "Failed to query price history".to_string(),
+                Some(Box::new(e)),
+            )
         })?;
 
         Ok(prices)
@@ -585,7 +608,10 @@ impl Repository {
             .execute(&self.pool)
             .await
             .map_err(|e| {
-                TrackerError::database("Database health check failed".to_string(), Some(Box::new(e)))
+                TrackerError::database(
+                    "Database health check failed".to_string(),
+                    Some(Box::new(e)),
+                )
             })?;
 
         Ok(())
@@ -598,14 +624,20 @@ impl Repository {
             .fetch_optional(&self.pool)
             .await
             .map_err(|e| {
-                TrackerError::database("Failed to query pool by name".to_string(), Some(Box::new(e)))
+                TrackerError::database(
+                    "Failed to query pool by name".to_string(),
+                    Some(Box::new(e)),
+                )
             })?;
 
         Ok(pool)
     }
 
     /// Get the latest confirmed price point for a pool.
-    pub async fn get_latest_price(&self, pool_id: i64) -> Result<Option<PricePointRow>, TrackerError> {
+    pub async fn get_latest_price(
+        &self,
+        pool_id: i64,
+    ) -> Result<Option<PricePointRow>, TrackerError> {
         let price = sqlx::query_as::<_, PricePointRow>(
             r#"
             SELECT block_number, block_timestamp, tx_hash, price,
@@ -620,7 +652,10 @@ impl Repository {
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| {
-            TrackerError::database("Failed to query latest price".to_string(), Some(Box::new(e)))
+            TrackerError::database(
+                "Failed to query latest price".to_string(),
+                Some(Box::new(e)),
+            )
         })?;
 
         Ok(price)
@@ -649,7 +684,10 @@ impl Repository {
         .fetch_one(&self.pool)
         .await
         .map_err(|e| {
-            TrackerError::database("Failed to query 24h price change".to_string(), Some(Box::new(e)))
+            TrackerError::database(
+                "Failed to query 24h price change".to_string(),
+                Some(Box::new(e)),
+            )
         })?;
 
         if let (Some(current), Some(old)) = (result.0, result.1) {
@@ -674,23 +712,23 @@ impl Repository {
         let from = from_ts.unwrap_or(0);
         let to = to_ts.unwrap_or(i64::MAX);
 
-                let count = sqlx::query_as::<_, (i64,)>(
-                        r#"
+        let count = sqlx::query_as::<_, (i64,)>(
+            r#"
                         SELECT COUNT(*) as count
                         FROM price_points
                         WHERE pool_id = ? AND is_confirmed = 1
                             AND block_timestamp BETWEEN ? AND ?
                         "#,
-                )
-                .bind(pool_id)
-                .bind(from)
-                .bind(to)
-                .fetch_one(&self.pool)
-                .await
-                .map_err(|e| {
-                        TrackerError::database("Failed to query price count".to_string(), Some(Box::new(e)))
-                })?
-                .0 as u64;
+        )
+        .bind(pool_id)
+        .bind(from)
+        .bind(to)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| {
+            TrackerError::database("Failed to query price count".to_string(), Some(Box::new(e)))
+        })?
+        .0 as u64;
 
         let prices = sqlx::query_as::<_, PricePointRow>(
             r#"
@@ -711,7 +749,10 @@ impl Repository {
         .fetch_all(&self.pool)
         .await
         .map_err(|e| {
-            TrackerError::database("Failed to query price history".to_string(), Some(Box::new(e)))
+            TrackerError::database(
+                "Failed to query price history".to_string(),
+                Some(Box::new(e)),
+            )
         })?;
 
         Ok((prices, count))
@@ -794,7 +835,10 @@ impl Repository {
         .fetch_all(&self.pool)
         .await
         .map_err(|e| {
-            TrackerError::database("Failed to query recent events".to_string(), Some(Box::new(e)))
+            TrackerError::database(
+                "Failed to query recent events".to_string(),
+                Some(Box::new(e)),
+            )
         })?;
 
         Ok(events)
@@ -802,14 +846,15 @@ impl Repository {
 
     /// Ensure the default WETH/USDT pool exists for API testing.
     pub async fn ensure_default_pool(&self) -> Result<i64, TrackerError> {
-        let existing = sqlx::query_as::<_, (i64,)>(
-            "SELECT id FROM pools WHERE name = 'WETH/USDT'",
-        )
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(|e| {
-            TrackerError::database("Failed to query default pool".to_string(), Some(Box::new(e)))
-        })?;
+        let existing = sqlx::query_as::<_, (i64,)>("SELECT id FROM pools WHERE name = 'WETH/USDT'")
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| {
+                TrackerError::database(
+                    "Failed to query default pool".to_string(),
+                    Some(Box::new(e)),
+                )
+            })?;
 
         if let Some((pool_id,)) = existing {
             info!(pool_id, "Default pool already exists");
@@ -842,7 +887,10 @@ impl Repository {
         .fetch_one(&self.pool)
         .await
         .map_err(|e| {
-            TrackerError::database("Failed to insert default pool".to_string(), Some(Box::new(e)))
+            TrackerError::database(
+                "Failed to insert default pool".to_string(),
+                Some(Box::new(e)),
+            )
         })?
         .0;
 
@@ -870,15 +918,17 @@ impl Repository {
     ///
     /// Returns `None` if no state exists (first run).
     pub async fn get_state(&self, pool_id: i64) -> Result<Option<IndexerState>, TrackerError> {
-        let state = sqlx::query_as::<_, IndexerState>(
-            "SELECT * FROM indexer_state WHERE pool_id = ?",
-        )
-        .bind(pool_id)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(|e| {
-            TrackerError::database("Failed to query indexer state".to_string(), Some(Box::new(e)))
-        })?;
+        let state =
+            sqlx::query_as::<_, IndexerState>("SELECT * FROM indexer_state WHERE pool_id = ?")
+                .bind(pool_id)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(|e| {
+                    TrackerError::database(
+                        "Failed to query indexer state".to_string(),
+                        Some(Box::new(e)),
+                    )
+                })?;
 
         Ok(state)
     }
@@ -926,7 +976,10 @@ impl Repository {
         .execute(&self.pool)
         .await
         .map_err(|e| {
-            TrackerError::database("Failed to update indexer state".to_string(), Some(Box::new(e)))
+            TrackerError::database(
+                "Failed to update indexer state".to_string(),
+                Some(Box::new(e)),
+            )
         })?;
 
         Ok(())
@@ -992,7 +1045,10 @@ impl Repository {
         })?;
 
         tx.commit().await.map_err(|e| {
-            TrackerError::database("Failed to commit transaction".to_string(), Some(Box::new(e)))
+            TrackerError::database(
+                "Failed to commit transaction".to_string(),
+                Some(Box::new(e)),
+            )
         })?;
 
         Ok(())
@@ -1039,7 +1095,10 @@ impl Repository {
         })?;
 
         tx.commit().await.map_err(|e| {
-            TrackerError::database("Failed to commit transaction".to_string(), Some(Box::new(e)))
+            TrackerError::database(
+                "Failed to commit transaction".to_string(),
+                Some(Box::new(e)),
+            )
         })?;
 
         Ok(())
@@ -1121,10 +1180,14 @@ mod tests {
             .ensure_pool_exists(
                 pool_addr,
                 Some("USDC-WETH".to_string()),
-                "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".parse().unwrap(),
+                "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+                    .parse()
+                    .unwrap(),
                 Some("USDC".to_string()),
                 6,
-                "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".parse().unwrap(),
+                "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+                    .parse()
+                    .unwrap(),
                 Some("WETH".to_string()),
                 18,
             )
@@ -1161,10 +1224,14 @@ mod tests {
             .ensure_pool_exists(
                 pool_addr,
                 Some("USDC-WETH".to_string()),
-                "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".parse().unwrap(),
+                "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+                    .parse()
+                    .unwrap(),
                 Some("USDC".to_string()),
                 6,
-                "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".parse().unwrap(),
+                "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+                    .parse()
+                    .unwrap(),
                 Some("WETH".to_string()),
                 18,
             )
@@ -1211,10 +1278,14 @@ mod tests {
             .ensure_pool_exists(
                 pool_addr,
                 Some("USDC-WETH".to_string()),
-                "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".parse().unwrap(),
+                "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+                    .parse()
+                    .unwrap(),
                 Some("USDC".to_string()),
                 6,
-                "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".parse().unwrap(),
+                "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+                    .parse()
+                    .unwrap(),
                 Some("WETH".to_string()),
                 18,
             )
@@ -1254,10 +1325,14 @@ mod tests {
             .ensure_pool_exists(
                 pool_addr,
                 Some("USDC-WETH".to_string()),
-                "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".parse().unwrap(),
+                "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+                    .parse()
+                    .unwrap(),
                 Some("USDC".to_string()),
                 6,
-                "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".parse().unwrap(),
+                "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+                    .parse()
+                    .unwrap(),
                 Some("WETH".to_string()),
                 18,
             )

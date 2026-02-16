@@ -49,8 +49,8 @@ pub async fn get_current_price(
 
     let change_24h = state.repository.get_24h_price_change(pool.id).await.ok();
 
-    let timestamp = DateTime::from_timestamp(price_point.block_timestamp, 0)
-        .unwrap_or_else(Utc::now);
+    let timestamp =
+        DateTime::from_timestamp(price_point.block_timestamp, 0).unwrap_or_else(Utc::now);
 
     let response = CurrentPriceResponse {
         pool: pool_name_normalized,
@@ -99,7 +99,9 @@ pub async fn get_price_history(
         return Err(ApiError::BadRequest("page must be >= 1".to_string()));
     }
     if query.page_size > 1000 {
-        return Err(ApiError::BadRequest("page_size must be <= 1000".to_string()));
+        return Err(ApiError::BadRequest(
+            "page_size must be <= 1000".to_string(),
+        ));
     }
 
     let pool = state

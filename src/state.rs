@@ -407,7 +407,7 @@ impl State {
     ///
     /// let mut state = State::new();
     /// // ... update state to block 19000100 ...
-    /// 
+    ///
     /// // Reorg detected, rollback to fork point
     /// state.invalidate_from(19000050);
     /// assert_eq!(state.get_last_block(), 19000050);
@@ -439,10 +439,10 @@ impl State {
     pub fn save<P: AsRef<Path>>(&self, path: P) -> TrackerResult<()> {
         let json = serde_json::to_string_pretty(self)
             .map_err(|e| TrackerError::state("Failed to serialize state", Some(Box::new(e))))?;
-        
+
         fs::write(path.as_ref(), json)
             .map_err(|e| TrackerError::state("Failed to write state file", Some(Box::new(e))))?;
-        
+
         info!("State saved to {}", path.as_ref().display());
         Ok(())
     }
@@ -461,17 +461,24 @@ impl State {
     /// Returns error if file exists but cannot be read or JSON is invalid.
     pub fn load<P: AsRef<Path>>(path: P) -> TrackerResult<Self> {
         if !path.as_ref().exists() {
-            info!("No state file found at {}, starting fresh", path.as_ref().display());
+            info!(
+                "No state file found at {}, starting fresh",
+                path.as_ref().display()
+            );
             return Ok(Self::new());
         }
 
         let json = fs::read_to_string(path.as_ref())
             .map_err(|e| TrackerError::state("Failed to read state file", Some(Box::new(e))))?;
-        
+
         let state: Self = serde_json::from_str(&json)
             .map_err(|e| TrackerError::state("Failed to deserialize state", Some(Box::new(e))))?;
-        
-        info!("State loaded from {}: last_block={}", path.as_ref().display(), state.last_block);
+
+        info!(
+            "State loaded from {}: last_block={}",
+            path.as_ref().display(),
+            state.last_block
+        );
         Ok(state)
     }
 }

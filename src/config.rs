@@ -139,7 +139,11 @@ impl Config {
 
         // Required: RPC URL (or construct from ALCHEMY_API_KEY for backward compatibility)
         let rpc_url = match env::var("RPC_URL") {
-            Ok(url) if !url.is_empty() && url != "https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY_HERE" && url.starts_with("http") => {
+            Ok(url)
+                if !url.is_empty()
+                    && url != "https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY_HERE"
+                    && url.starts_with("http") =>
+            {
                 url
             }
             Ok(url) if !url.starts_with("http") => {
@@ -173,17 +177,16 @@ impl Config {
         };
 
         // Extract API key for storage (for backward compatibility)
-        let alchemy_api_key = if let Some(api_key) = rpc_url.strip_prefix("https://eth-mainnet.g.alchemy.com/v2/") {
-            api_key.to_string()
-        } else {
-            "custom_rpc".to_string()
-        };
+        let alchemy_api_key =
+            if let Some(api_key) = rpc_url.strip_prefix("https://eth-mainnet.g.alchemy.com/v2/") {
+                api_key.to_string()
+            } else {
+                "custom_rpc".to_string()
+            };
 
         // Optional: WebSocket RPC URL (construct from HTTP URL if not provided)
         let rpc_ws_url = match env::var("RPC_WS_URL") {
-            Ok(url) if !url.is_empty() && url.starts_with("wss://") => {
-                Some(url)
-            }
+            Ok(url) if !url.is_empty() && url.starts_with("wss://") => Some(url),
             Ok(url) if !url.is_empty() => {
                 return Err(TrackerError::config(
                     format!(
@@ -220,8 +223,8 @@ impl Config {
             .into();
 
         // Optional: Database URL (default: sqlite:./indexer.db)
-        let database_url = env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "sqlite:./indexer.db".to_string());
+        let database_url =
+            env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:./indexer.db".to_string());
 
         // Optional: Watch mode (default: false)
         let watch_mode = env::var("WATCH_MODE")
@@ -395,24 +398,33 @@ mod tests {
     fn test_config_rpc_url_construction() {
         // This test verifies that config loads successfully from .env
         // and that URLs are properly formatted
-        
+
         let config = Config::from_env();
-        assert!(config.is_ok(), "Config should load from environment/.env file");
+        assert!(
+            config.is_ok(),
+            "Config should load from environment/.env file"
+        );
 
         if let Ok(config) = config {
             // Verify the RPC URL starts with https://
-            assert!(config.rpc_url().starts_with("https://"),
-                "RPC URL should start with https://");
-            
+            assert!(
+                config.rpc_url().starts_with("https://"),
+                "RPC URL should start with https://"
+            );
+
             // If WebSocket URL is present, verify it starts with wss://
             if let Some(ws_url) = config.rpc_ws_url() {
-                assert!(ws_url.starts_with("wss://"),
-                    "WebSocket URL should start with wss://");
+                assert!(
+                    ws_url.starts_with("wss://"),
+                    "WebSocket URL should start with wss://"
+                );
             }
-            
+
             // Verify pool address is valid format
-            assert!(config.pool_address.starts_with("0x") && config.pool_address.len() == 42,
-                "Pool address should be valid Ethereum address format");
+            assert!(
+                config.pool_address.starts_with("0x") && config.pool_address.len() == 42,
+                "Pool address should be valid Ethereum address format"
+            );
         }
     }
 }

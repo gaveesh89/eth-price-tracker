@@ -1,10 +1,6 @@
 //! Request logging middleware using tracing.
 
-use axum::{
-    extract::Request,
-    middleware::Next,
-    response::Response,
-};
+use axum::{extract::Request, middleware::Next, response::Response};
 use std::time::Instant;
 use tracing::{info, Span};
 

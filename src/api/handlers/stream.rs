@@ -48,7 +48,10 @@ async fn handle_socket(mut socket: WebSocket, pool_name: String, state: AppState
         price: 0.0,
         block_number: 0,
         timestamp: chrono::Utc::now(),
-        reserves: ReservesInfo { weth: 0.0, usdt: 0.0 },
+        reserves: ReservesInfo {
+            weth: 0.0,
+            usdt: 0.0,
+        },
     };
 
     if let Ok(json) = serde_json::to_string(&connect_msg) {
