@@ -147,7 +147,7 @@ async fn run_price_command(blocks: u64) -> TrackerResult<()> {
     // Create database connection to fetch pool details
     let pool_conn = create_pool(config.database_url()).await?;
     let repository = Repository::new(pool_conn);
-    
+
     // Fetch pool details for decimals
     let pool = repository
         .get_pool_by_name("WETH/USDT")

@@ -100,11 +100,11 @@ pub fn calculate_price(
 
     // Calculate decimal adjustment: 10^(decimals0 - decimals1)
     let decimal_diff = decimals0 as i32 - decimals1 as i32;
-    
+
     // To maintain precision for small fractional prices, we convert to f64
     // before the final division. We calculate:
     // price = (reserve1 * 10^(decimals0 - decimals1)) / reserve0
-    
+
     let price = if decimal_diff >= 0 {
         // decimals0 >= decimals1, multiply reserve1 by 10^diff
         let adjustment = U256::from(10u128.pow(decimal_diff.unsigned_abs()));
@@ -114,7 +114,7 @@ pub fn calculate_price(
                 None,
             )
         })?;
-        
+
         // Convert to f64 for division to preserve fractional results
         let numerator_u128 = u128::try_from(numerator).map_err(|e| {
             TrackerError::math("Numerator too large to convert to f64", Some(Box::new(e)))
@@ -122,23 +122,26 @@ pub fn calculate_price(
         let reserve0_u128 = u128::try_from(reserve0).map_err(|e| {
             TrackerError::math("Reserve0 too large to convert to f64", Some(Box::new(e)))
         })?;
-        
+
         #[allow(clippy::cast_precision_loss)]
         let numerator_f64 = numerator_u128 as f64;
         #[allow(clippy::cast_precision_loss)]
         let denominator_f64 = reserve0_u128 as f64;
-        
+
         numerator_f64 / denominator_f64
     } else {
         // decimals1 > decimals0, multiply reserve0 by 10^|diff|
         let adjustment = U256::from(10u128.pow(decimal_diff.unsigned_abs()));
         let denominator = reserve0.checked_mul(adjustment).ok_or_else(|| {
             TrackerError::math(
-                format!("Overflow when adjusting reserve0 by 10^{}", decimal_diff.abs()),
+                format!(
+                    "Overflow when adjusting reserve0 by 10^{}",
+                    decimal_diff.abs()
+                ),
                 None,
             )
         })?;
-        
+
         // Convert to f64 for division to preserve fractional results
         let reserve1_u128 = u128::try_from(reserve1).map_err(|e| {
             TrackerError::math("Reserve1 too large to convert to f64", Some(Box::new(e)))
@@ -146,12 +149,12 @@ pub fn calculate_price(
         let denominator_u128 = u128::try_from(denominator).map_err(|e| {
             TrackerError::math("Denominator too large to convert to f64", Some(Box::new(e)))
         })?;
-        
+
         #[allow(clippy::cast_precision_loss)]
         let numerator_f64 = reserve1_u128 as f64;
         #[allow(clippy::cast_precision_loss)]
         let denominator_f64 = denominator_u128 as f64;
-        
+
         numerator_f64 / denominator_f64
     };
 

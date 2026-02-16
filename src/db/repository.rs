@@ -383,10 +383,16 @@ impl Repository {
         .map_err(|e| {
             tracing::error!(
                 "Failed to insert price point: pool_id={}, block={}, price={}, error={}",
-                pool_id, block_number, price, e
+                pool_id,
+                block_number,
+                price,
+                e
             );
             TrackerError::database(
-                format!("Failed to insert price point at block {}: {}", block_number, e),
+                format!(
+                    "Failed to insert price point at block {}: {}",
+                    block_number, e
+                ),
                 Some(Box::new(e)),
             )
         })?;

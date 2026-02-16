@@ -99,7 +99,7 @@ sol! {
         /// # Returns
         /// The number of decimals (typically 18 for most tokens, 6 for USDT)
         function decimals() external view returns (uint8);
-        
+
         /// Returns the token symbol.
         function symbol() external view returns (string memory);
     }
@@ -159,26 +159,32 @@ pub const USDT_ADDRESS: Address = address!("dAC17F958D2ee523a2206206994597C13D83
 /// # Ok(())
 /// # }
 /// ```
-pub async fn fetch_token_decimals<P>(provider: &P, token_address: Address) -> crate::error::TrackerResult<u8>
+pub async fn fetch_token_decimals<P>(
+    provider: &P,
+    token_address: Address,
+) -> crate::error::TrackerResult<u8>
 where
     P: alloy::providers::Provider,
 {
     use crate::error::TrackerError;
-    
+
     let contract = IERC20::new(token_address, provider);
-    
+
     let decimals = contract
         .decimals()
         .call()
         .await
         .map_err(|e| {
             TrackerError::rpc(
-                format!("Failed to fetch decimals for token {}: {}", token_address, e),
+                format!(
+                    "Failed to fetch decimals for token {}: {}",
+                    token_address, e
+                ),
                 Some(Box::new(e)),
             )
         })?
         ._0;
-    
+
     Ok(decimals)
 }
 
