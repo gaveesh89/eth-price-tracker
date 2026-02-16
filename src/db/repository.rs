@@ -381,8 +381,12 @@ impl Repository {
         .execute(&self.pool)
         .await
         .map_err(|e| {
+            tracing::error!(
+                "Failed to insert price point: pool_id={}, block={}, price={}, error={}",
+                pool_id, block_number, price, e
+            );
             TrackerError::database(
-                "Failed to insert price point".to_string(),
+                format!("Failed to insert price point at block {}: {}", block_number, e),
                 Some(Box::new(e)),
             )
         })?;
