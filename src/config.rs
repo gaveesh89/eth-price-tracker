@@ -395,6 +395,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore = "Requires ALCHEMY_API_KEY environment variable"]
     fn test_config_rpc_url_construction() {
         // This test verifies that config loads successfully from .env
         // and that URLs are properly formatted
