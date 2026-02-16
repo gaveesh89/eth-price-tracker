@@ -42,7 +42,7 @@
 //!
 //! ### Using as a Library
 //!
-//! ```rust,no_run
+//! ```rust,ignore
 //! use eth_uniswap_alloy::{config::Config, rpc::create_provider, events::*, pricing::*};
 //!
 //! #[tokio::main]

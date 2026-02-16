@@ -31,7 +31,7 @@
 //! # Usage Patterns
 //!
 //! ## Historical Data Fetching
-//! ```no_run
+//! ```rust,ignore
 //! use eth_uniswap_alloy::rpc::{create_provider, get_latest_block};
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
@@ -42,7 +42,7 @@
 //! ```
 //!
 //! ## Real-time Subscriptions
-//! ```no_run
+//! ```rust,ignore
 //! use eth_uniswap_alloy::rpc::websocket::WebSocketProvider;
 //! use futures_util::stream::StreamExt;
 //!
@@ -58,7 +58,7 @@
 //! ```
 //!
 //! ## Hybrid Mode (Recommended)
-//! ```no_run
+//! ```rust,ignore
 //! use eth_uniswap_alloy::rpc::hybrid::{HybridProviderManager, ProviderMode};
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {

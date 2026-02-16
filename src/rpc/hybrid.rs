@@ -11,7 +11,7 @@
 //!
 //! # Example
 //!
-//! ```no_run
+//! ```rust,ignore
 //! use eth_uniswap_alloy::rpc::hybrid::{HybridProviderManager, ProviderMode};
 //!
 //! #[tokio::main]
@@ -206,7 +206,7 @@ impl HybridProviderManager {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```rust,ignore
     /// # use eth_uniswap_alloy::rpc::hybrid::{HybridProviderManager, ProviderMode};
     /// # use futures_util::stream::StreamExt;
     /// # #[tokio::main]

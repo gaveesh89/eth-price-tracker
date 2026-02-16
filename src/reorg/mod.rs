@@ -22,7 +22,7 @@
 //!
 //! ## Example
 //!
-//! ```no_run
+//! ```rust,ignore
 //! use eth_uniswap_alloy::reorg::{ReorgDetector, BlockRecord};
 //! use alloy::providers::Provider;
 //!

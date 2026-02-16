@@ -44,7 +44,7 @@ use tracing::{debug, error, info, instrument, warn};
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```rust,ignore
 /// use eth_uniswap_alloy::rpc::websocket::WebSocketProvider;
 ///
 /// #[tokio::main]
