@@ -446,14 +446,14 @@ mod tests {
 
     #[test]
     fn test_sync_event_reserve_conversion() {
-        let reserve0 = U256::from(1000000000u64);
-        let reserve1 = U256::from(500000000000000000u64);
+        let reserve0 = U256::from(1_000_000_000u64);
+        let reserve1 = U256::from(500_000_000_000_000_000u64);
 
         let event = SyncEventRecord::new(
             1,
-            19000000,
+            19_000_000,
             FixedBytes::from([0u8; 32]),
-            1706745600,
+            1_706_745_600,
             FixedBytes::from([0u8; 32]),
             0,
             reserve0,

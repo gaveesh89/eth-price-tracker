@@ -62,7 +62,7 @@ pub async fn get_stats(
         }
     };
 
-    let stats = state
+    let stats_data = state
         .repository
         .get_stats_for_period(pool.id, from_timestamp.timestamp())
         .await?;
@@ -73,8 +73,8 @@ pub async fn get_stats(
         .await?
         .ok_or_else(|| ApiError::NotFound("No price data".to_string()))?;
 
-    let change_percent = if stats.first_price.unwrap_or(0.0) > 0.0 {
-        let first = stats.first_price.unwrap_or(0.0);
+    let change_percent = if stats_data.first_price.unwrap_or(0.0) > 0.0 {
+        let first = stats_data.first_price.unwrap_or(0.0);
         ((current.price - first) / first) * 100.0
     } else {
         0.0
@@ -84,14 +84,15 @@ pub async fn get_stats(
         pool: pool_name_normalized,
         period: period_enum,
         current_price: current.price,
-        high: stats.max_price,
-        low: stats.min_price,
-        average: stats.avg_price,
+        high: stats_data.max_price,
+        low: stats_data.min_price,
+        average: stats_data.avg_price,
         change_percent,
-        volume_events: stats.total_events as u64,
-        first_timestamp: DateTime::from_timestamp(stats.first_timestamp, 0)
+        volume_events: stats_data.total_events as u64,
+        first_timestamp: DateTime::from_timestamp(stats_data.first_timestamp, 0)
             .unwrap_or_else(Utc::now),
-        last_timestamp: DateTime::from_timestamp(stats.last_timestamp, 0).unwrap_or_else(Utc::now),
+        last_timestamp: DateTime::from_timestamp(stats_data.last_timestamp, 0)
+            .unwrap_or_else(Utc::now),
     };
 
     Ok(Json(response))
