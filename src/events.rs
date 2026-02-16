@@ -90,6 +90,21 @@ sol! {
     }
 }
 
+// Generate ERC20 interface for querying token metadata
+sol! {
+    #[sol(rpc)]
+    interface IERC20 {
+        /// Returns the number of decimals used by the token.
+        ///
+        /// # Returns
+        /// The number of decimals (typically 18 for most tokens, 6 for USDT)
+        function decimals() external view returns (uint8);
+        
+        /// Returns the token symbol.
+        function symbol() external view returns (string memory);
+    }
+}
+
 // Re-export the generated types for easier access
 pub use IUniswapV2Pair::Sync;
 
@@ -109,6 +124,63 @@ pub const WETH_ADDRESS: Address = address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C75
 ///
 /// This is the official USDT contract address.
 pub const USDT_ADDRESS: Address = address!("dAC17F958D2ee523a2206206994597C13D831ec7");
+
+/// Fetch the number of decimals for an ERC20 token.
+///
+/// Queries the ERC20 contract's `decimals()` function to get the token's decimal precision.
+/// This is essential for proper price calculations when dealing with token pairs.
+///
+/// ## Arguments
+///
+/// * `provider` - Ethereum RPC provider
+/// * `token_address` - Address of the ERC20 token contract
+///
+/// ## Returns
+///
+/// The number of decimals (typically 18 for most tokens, 6 for USDT, etc.)
+///
+/// ## Errors
+///
+/// Returns error if:
+/// - Contract doesn't exist at the given address
+/// - Contract doesn't implement ERC20 decimals()
+/// - RPC call fails
+///
+/// ## Example
+///
+/// ```no_run
+/// use eth_uniswap_alloy::events::{fetch_token_decimals, WETH_ADDRESS};
+/// use eth_uniswap_alloy::rpc::create_provider;
+///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// let provider = create_provider("https://eth-mainnet.g.alchemy.com/v2/KEY").await?;
+/// let decimals = fetch_token_decimals(&provider, WETH_ADDRESS).await?;
+/// assert_eq!(decimals, 18); // WETH has 18 decimals
+/// # Ok(())
+/// # }
+/// ```
+pub async fn fetch_token_decimals<P>(provider: &P, token_address: Address) -> crate::error::TrackerResult<u8>
+where
+    P: alloy::providers::Provider,
+{
+    use crate::error::TrackerError;
+    
+    let contract = IERC20::new(token_address, provider);
+    
+    let decimals = contract
+        .decimals()
+        .call()
+        .await
+        .map_err(|e| {
+            TrackerError::rpc(
+                format!("Failed to fetch decimals for token {}: {}", token_address, e),
+                Some(Box::new(e)),
+            )
+        })?
+        ._0;
+    
+    Ok(decimals)
+}
 
 /// Create a typed filter for Sync events from the WETH/USDT pair.
 ///

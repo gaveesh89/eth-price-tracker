@@ -25,7 +25,7 @@ use crate::db::create_pool;
 use crate::db::repository::Repository;
 use crate::error::{TrackerError, TrackerResult};
 use crate::events::{create_sync_filter_for_pair, Sync, UNISWAP_V2_WETH_USDT_PAIR};
-use crate::pricing::calculate_eth_price;
+use crate::pricing::calculate_price;
 use crate::reorg::{BlockRecord, ReorgDetector};
 use crate::rpc::{create_provider, get_latest_block};
 use crate::state::State;
@@ -144,10 +144,25 @@ async fn run_price_command(blocks: u64) -> TrackerResult<()> {
 
     let (sync_event, block_number) = decode_sync_event(latest_log)?;
 
-    // Calculate price
+    // Create database connection to fetch pool details
+    let pool_conn = create_pool(config.database_url()).await?;
+    let repository = Repository::new(pool_conn);
+    
+    // Fetch pool details for decimals
+    let pool = repository
+        .get_pool_by_name("WETH/USDT")
+        .await?
+        .ok_or_else(|| TrackerError::state("Pool not found", None))?;
+
+    // Calculate price with dynamic decimals
     let weth_reserve = U256::from(sync_event.reserve0);
     let usdt_reserve = U256::from(sync_event.reserve1);
-    let price = calculate_eth_price(weth_reserve, usdt_reserve)?;
+    let price = calculate_price(
+        weth_reserve,
+        usdt_reserve,
+        pool.token0_decimals as u8,
+        pool.token1_decimals as u8,
+    )?;
 
     // Display result
     print_price_update(block_number, price, weth_reserve, usdt_reserve, None);
@@ -174,8 +189,20 @@ async fn run_watch_command(interval: u64, start_block: Option<u64>) -> TrackerRe
     let pool = create_pool(config.database_url()).await?;
     let repository = Repository::new(pool);
 
-    // Ensure the pool exists in database
-    repository.ensure_default_pool().await?;
+    // Ensure the pool exists in database and fetch its details
+    let _pool_id = repository.ensure_default_pool().await?;
+    let pool = repository
+        .get_pool_by_name("WETH/USDT")
+        .await?
+        .ok_or_else(|| TrackerError::state("Pool not found after initialization", None))?;
+    info!(
+        "Using pool: {} (token0: {} decimals={}, token1: {} decimals={})",
+        pool.name.as_deref().unwrap_or("unknown"),
+        pool.token0_symbol.as_deref().unwrap_or("??"),
+        pool.token0_decimals,
+        pool.token1_symbol.as_deref().unwrap_or("??"),
+        pool.token1_decimals
+    );
 
     // Initialize state tracker - load from file if exists
     let mut state = State::load(config.state_file()).unwrap_or_else(|e| {
@@ -421,9 +448,14 @@ async fn process_new_blocks(
                 // Update state
                 state.update_from_sync_event(&sync_event, block_number)?;
 
-                // Calculate price
+                // Calculate price with dynamic decimals
                 let (weth_reserve, usdt_reserve) = state.get_reserves();
-                let price = calculate_eth_price(weth_reserve, usdt_reserve)?;
+                let price = calculate_price(
+                    weth_reserve,
+                    usdt_reserve,
+                    pool.token0_decimals as u8,
+                    pool.token1_decimals as u8,
+                )?;
 
                 // Convert reserves to human-readable format
                 let weth_human = weth_reserve.to::<u128>() as f64 / 1e18;
